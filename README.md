@@ -397,6 +397,41 @@ ollama pull llama3.1:8b
 - Use a smaller Whisper model: `ZNT_WHISPER_MODEL=tiny`
 - Ensure you have sufficient RAM (8GB+ recommended)
 
+### "Volume keys not working" (macOS)
+
+When using Multi-Output Device, macOS disables hardware volume control (F11/F12 show blocked speaker icon).
+
+**Solutions:**
+- Control volume in Zoom: Settings → Audio → Output Volume
+- Use Control Center: Click the **toggle switches icon** in menu bar → Sound → adjust volume
+- Control individual app volumes through their settings
+
+**Quick Audio Output Switching (macOS):**
+1. Click the **Control Center icon** (two toggle switches) in the top menu bar
+2. Click **Sound**
+3. Select output device:
+   - **Multi-Output Device** - when recording (captures Zoom audio)
+   - **MacBook Pro Speakers** - when not recording (normal use)
+
+### "Volume control issues" (Windows)
+
+When using VB-Cable, system volume may not affect captured audio.
+
+**Solutions:**
+- Control volume in Zoom: Settings → Audio → Speaker volume
+- Use Windows Volume Mixer for per-app volume control
+
+**Quick Audio Output Switching (Windows):**
+1. Click the **speaker icon** in the system tray (bottom-right)
+2. Click the **arrow** next to the volume slider
+3. Select output device:
+   - **CABLE Input** - when recording (routes to VB-Cable)
+   - **Speakers/Headphones** - when not recording (normal use)
+
+Alternatively:
+1. Right-click speaker icon → **Sound settings**
+2. Under "Output", select your desired device
+
 ---
 
 ## Project Structure
