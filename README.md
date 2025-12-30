@@ -72,6 +72,14 @@ venv\Scripts\activate
 pip install -e .
 ```
 
+### 3a. Configure Launch Scripts (IMPORTANT for Windows/macOS)
+
+Run the `setup_paths.py` script to automatically configure the project directory in your `.bat` and `.command` quick launch scripts. This step ensures they work correctly on your system.
+
+```bash
+python setup_paths.py
+```
+
 ### 4. Download Ollama Model
 
 ```bash
@@ -274,6 +282,10 @@ Notes are automatically organized based on meeting title:
 
 ## Customizing Scripts
 
+### Ensure Scripts are Configured
+
+After initial installation or if you move the project, run `python setup_paths.py` to ensure all `.bat` and `.command` files correctly point to the project directory.
+
 ### Change Notes Storage Location
 
 Edit the `ZNT_NOTES_BASE` variable in each script:
@@ -283,16 +295,20 @@ Edit the `ZNT_NOTES_BASE` variable in each script:
 export ZNT_NOTES_BASE="$HOME/Documents/MyNotes"
 ```
 
-**Windows (.bat files):**
+**Windows (.bat files):</b>
 ```cmd
 set ZNT_NOTES_BASE=%USERPROFILE%\Documents\MyNotes
 ```
 
 ### Create Custom Meeting Scripts
 
-Copy an existing script and modify:
-1. Change `MEETING_TITLE` for fixed-title meetings
-2. Change `ZNT_NOTES_BASE` for different storage locations
+The provided `atve-standup`, `tnt-standup`, and `zoom-notes` scripts are examples. You can create your own custom quick-launch scripts:
+1. Copy an existing `.bat` (for Windows) or `.command` (for macOS) file.
+2. Rename it (e.g., `my-team-meeting.bat`).
+3. Edit the new script:
+    *   Change `MEETING_TITLE` for fixed-title meetings.
+    *   Change `ZNT_NOTES_BASE` if you want a different storage location for these specific notes.
+
 
 ---
 

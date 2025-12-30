@@ -3,7 +3,7 @@ REM Zoom Notes Taker - Quick Launch Script for Windows
 REM Double-click to start recording any meeting (prompts for title)
 
 REM Project location (absolute path) - UPDATE THIS
-set PROJECT_DIR=C:\Development\zoom-notes-taker
+set PROJECT_DIR=E:\GitRepos\vibe-coding\zoom-notes-taker-ai
 
 REM Notes storage location - UPDATE THIS to your preferred path
 set ZNT_NOTES_BASE=%USERPROFILE%\OneDrive\meeting-notes

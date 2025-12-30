@@ -149,7 +149,12 @@ def start(title: str, model: Optional[str], default_model: bool):
 
         # Set up signal handler for this event loop
         loop = asyncio.get_event_loop()
-        loop.add_signal_handler(signal.SIGINT, lambda: _stop_event.set())
+        try:
+            loop.add_signal_handler(signal.SIGINT, lambda: _stop_event.set())
+        except NotImplementedError:
+            # Signal handlers are not supported on Windows.
+            # We rely on KeyboardInterrupt to stop the loop.
+            pass
 
         try:
             session = await _recorder.start(title)

@@ -3,7 +3,7 @@
 # This script can be moved anywhere and run with a double-click
 
 # Project location (absolute path)
-PROJECT_DIR="/Volumes/Development/zoom-notes-taker"
+PROJECT_DIR="E:/GitRepos/vibe-coding/zoom-notes-taker-ai"
 
 # Notes storage location (OneDrive)
 export ZNT_NOTES_BASE="$HOME/Library/CloudStorage/OneDrive-WarnerBros.Discovery/meeting-notes"

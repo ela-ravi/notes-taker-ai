@@ -97,3 +97,5 @@ temp/
 # Exclude meeting specific command files
 *.command
 !zoom-notes.command
+*.bat
+!zoom-notes.bat
