@@ -43,7 +43,37 @@ Automatic meeting notes generator from Zoom meetings using local AI. Captures au
 
 ---
 
-## Installation
+## Quick Start (Recommended)
+
+Use the bootstrap script for automatic setup:
+
+**macOS/Linux:**
+```bash
+git clone <repository-url>
+cd zoom-notes-taker
+./bootstrap.sh
+```
+
+**Windows:**
+```cmd
+git clone <repository-url>
+cd zoom-notes-taker
+bootstrap.bat
+```
+
+The bootstrap script will:
+- Create virtual environment
+- Install all dependencies
+- Configure launch scripts
+- Create `.env` from template
+
+After bootstrap, install Ollama and pull the model (see [Prerequisites](#prerequisites)).
+
+---
+
+## Manual Installation
+
+If you prefer manual setup or the bootstrap script fails:
 
 ### 1. Clone the Repository
 
@@ -72,18 +102,18 @@ venv\Scripts\activate
 pip install -e .
 ```
 
-### 4. Download Ollama Model
+### 4. Create Configuration File
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` to customize settings (see [Configuration](#configuration)).
+
+### 5. Download Ollama Model
 
 ```bash
 ollama pull llama3.1:8b
-```
-
-### 5. Download Whisper Model (automatic on first run)
-
-The Whisper model downloads automatically. To pre-download:
-
-```bash
-python -c "import whisper; whisper.load_model('base')"
 ```
 
 ### 6. Run Setup Check
@@ -91,6 +121,8 @@ python -c "import whisper; whisper.load_model('base')"
 ```bash
 python -m src.main setup
 ```
+
+This verifies all dependencies are correctly installed.
 
 ---
 
@@ -146,24 +178,24 @@ python -m src.main setup
 
 ## Configuration
 
-Create a `.env` file in the project root:
+The `.env` file is created automatically by the bootstrap script. Key settings:
 
 ```env
-# Audio Settings
-ZNT_AUDIO_DEVICE=Aggregate Device      # macOS: Aggregate Device, Windows: CABLE Output
-ZNT_SAMPLE_RATE=16000
+# Project path (auto-configured by bootstrap)
+ZNT_PROJECT_DIR=/path/to/zoom-notes-taker
 
-# Whisper Settings
+# Audio device
+ZNT_AUDIO_DEVICE=Aggregate Device      # macOS: Aggregate Device, Windows: CABLE Output
+
+# Whisper model
 ZNT_WHISPER_MODEL=base                 # tiny, base, small, medium, large
 ZNT_WHISPER_LANGUAGE=                  # Empty for auto-detect, or: en, ta, es, etc.
 
-# Ollama Settings
+# Ollama model
 ZNT_OLLAMA_MODEL=llama3.1:8b
-ZNT_OLLAMA_HOST=http://localhost:11434
 
-# Output Settings (optional - scripts override this)
-ZNT_OUTPUT_DIR=~/Documents/ZoomNotes/notes
-ZNT_RECORDINGS_DIR=~/Documents/ZoomNotes/recordings
+# Notes storage location
+ZNT_NOTES_BASE=~/Documents/ZoomNotes/notes
 ```
 
 ---
@@ -190,8 +222,14 @@ Double-click these scripts to start recording:
 source venv/bin/activate  # macOS/Linux
 venv\Scripts\activate     # Windows
 
-# Start recording a meeting
+# Start recording a meeting (prompts for model selection)
 python -m src.main start --title "My Meeting"
+
+# Start with specific model (skip model selection)
+python -m src.main start --title "My Meeting" --model mistral:latest
+
+# Start with default model (skip model selection)
+python -m src.main start --title "My Meeting" --default-model
 
 # Transcribe an existing audio file
 python -m src.main transcribe path/to/audio.wav --title "Past Meeting"
@@ -205,6 +243,16 @@ python -m src.main devices
 # Show current configuration
 python -m src.main config
 ```
+
+### CLI Options for `start` Command
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--title` | `-t` | Meeting title (required) |
+| `--model` | `-m` | Specify Ollama model to use |
+| `--default-model` | `-d` | Use default model without prompting |
+
+When starting a recording without `--model` or `--default-model`, you'll see a list of available Ollama models to choose from.
 
 ---
 
@@ -274,25 +322,43 @@ Notes are automatically organized based on meeting title:
 
 ## Customizing Scripts
 
-### Change Notes Storage Location
+### Reconfigure Scripts After Moving Project
 
-Edit the `ZNT_NOTES_BASE` variable in each script:
+If you move the project to a different directory, re-run the bootstrap script:
 
-**macOS (.command files):**
+**macOS/Linux:**
 ```bash
-export ZNT_NOTES_BASE="$HOME/Documents/MyNotes"
+./bootstrap.sh
 ```
 
-**Windows (.bat files):**
+**Windows:**
 ```cmd
-set ZNT_NOTES_BASE=%USERPROFILE%\Documents\MyNotes
+bootstrap.bat
+```
+
+### Change Notes Storage Location
+
+Edit `ZNT_NOTES_BASE` in your `.env` file:
+
+```env
+# macOS example (OneDrive)
+ZNT_NOTES_BASE=~/Library/CloudStorage/OneDrive-YourOrg/meeting-notes
+
+# Windows example
+ZNT_NOTES_BASE=C:\Users\YourName\OneDrive\meeting-notes
+
+# Simple local folder
+ZNT_NOTES_BASE=~/Documents/MyNotes
 ```
 
 ### Create Custom Meeting Scripts
 
-Copy an existing script and modify:
-1. Change `MEETING_TITLE` for fixed-title meetings
-2. Change `ZNT_NOTES_BASE` for different storage locations
+The provided `atve-standup`, `tnt-standup`, and `zoom-notes` scripts are examples. You can create your own custom quick-launch scripts:
+1. Copy an existing `.bat` (for Windows) or `.command` (for macOS) file.
+2. Rename it (e.g., `my-team-meeting.bat`).
+3. Edit the new script:
+    *   Change `MEETING_TITLE` for fixed-title meetings.
+
 
 ---
 
@@ -331,6 +397,41 @@ ollama pull llama3.1:8b
 - Use a smaller Whisper model: `ZNT_WHISPER_MODEL=tiny`
 - Ensure you have sufficient RAM (8GB+ recommended)
 
+### "Volume keys not working" (macOS)
+
+When using Multi-Output Device, macOS disables hardware volume control (F11/F12 show blocked speaker icon).
+
+**Solutions:**
+- Control volume in Zoom: Settings → Audio → Output Volume
+- Use Control Center: Click the **toggle switches icon** in menu bar → Sound → adjust volume
+- Control individual app volumes through their settings
+
+**Quick Audio Output Switching (macOS):**
+1. Click the **Control Center icon** (two toggle switches) in the top menu bar
+2. Click **Sound**
+3. Select output device:
+   - **Multi-Output Device** - when recording (captures Zoom audio)
+   - **MacBook Pro Speakers** - when not recording (normal use)
+
+### "Volume control issues" (Windows)
+
+When using VB-Cable, system volume may not affect captured audio.
+
+**Solutions:**
+- Control volume in Zoom: Settings → Audio → Speaker volume
+- Use Windows Volume Mixer for per-app volume control
+
+**Quick Audio Output Switching (Windows):**
+1. Click the **speaker icon** in the system tray (bottom-right)
+2. Click the **arrow** next to the volume slider
+3. Select output device:
+   - **CABLE Input** - when recording (routes to VB-Cable)
+   - **Speakers/Headphones** - when not recording (normal use)
+
+Alternatively:
+1. Right-click speaker icon → **Sound settings**
+2. Under "Output", select your desired device
+
 ---
 
 ## Project Structure
@@ -338,19 +439,27 @@ ollama pull llama3.1:8b
 ```
 zoom-notes-taker/
 ├── src/
-│   ├── audio/           # Audio capture and device management
-│   ├── llm/             # Ollama client and summarization
-│   ├── notes/           # Notes generation and templates
-│   ├── transcription/   # Whisper transcription engine
-│   ├── utils/           # Utilities and file handling
-│   ├── config.py        # Application settings
-│   ├── config_platform.py  # Platform-specific configs
-│   └── main.py          # CLI entry point
-├── *.command            # macOS launch scripts
-├── *.bat                # Windows launch scripts
-├── .env                 # Configuration (create this)
-├── pyproject.toml       # Python project config
-└── README.md            # This file
+│   ├── audio/              # Audio capture and device management
+│   ├── llm/                # Ollama client and summarization
+│   ├── notes/              # Notes generation and templates
+│   ├── transcription/      # Whisper transcription engine
+│   ├── utils/              # Utilities and file handling
+│   ├── config.py           # Application settings
+│   ├── config_platform.py  # Platform-specific configs (macOS/Windows/Linux)
+│   └── main.py             # CLI entry point
+├── bootstrap.sh            # macOS/Linux setup script
+├── bootstrap.bat           # Windows setup script
+├── zoom-notes.command      # macOS: General meeting launcher
+├── atve-standup.command    # macOS: ATVE standup launcher
+├── tnt-standup.command     # macOS: TNT standup launcher
+├── zoom-notes.bat          # Windows: General meeting launcher
+├── atve-standup.bat        # Windows: ATVE standup launcher
+├── tnt-standup.bat         # Windows: TNT standup launcher
+├── .env.example            # Configuration template
+├── .env                    # Your configuration (create from .env.example)
+├── pyproject.toml          # Python project config
+├── requirements.txt        # Python dependencies
+└── README.md               # This file
 ```
 
 ---

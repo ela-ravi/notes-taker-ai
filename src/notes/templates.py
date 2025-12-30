@@ -1,4 +1,5 @@
 """Markdown and HTML templates for meeting notes."""
+from datetime import datetime
 
 MEETING_NOTES_TEMPLATE = """# {title}
 
@@ -162,7 +163,6 @@ def render_meeting_notes(notes) -> str:
     Returns:
         Formatted markdown string
     """
-    from datetime import datetime
 
     # Format meeting type line
     meeting_type_line = ""
@@ -221,7 +221,6 @@ def render_meeting_notes(notes) -> str:
 
 def render_simple_notes(title: str, date: datetime, duration: float, summary: str, key_points: list[str], transcript: str) -> str:
     """Render simple meeting notes without full structure."""
-    from datetime import datetime as dt
 
     return SIMPLE_NOTES_TEMPLATE.format(
         title=title,
@@ -640,7 +639,6 @@ def render_meeting_notes_html(notes) -> str:
     Returns:
         Formatted HTML string
     """
-    from datetime import datetime
     import html
 
     # Format meeting type badge

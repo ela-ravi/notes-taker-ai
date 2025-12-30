@@ -1,17 +1,37 @@
 @echo off
+setlocal EnableDelayedExpansion
 REM Zoom Notes Taker - Quick Launch Script for Windows
 REM Double-click to start recording any meeting (prompts for title)
 
-REM Project location (absolute path) - UPDATE THIS
-set PROJECT_DIR=C:\Development\zoom-notes-taker
+REM Get script directory
+set SCRIPT_DIR=%~dp0
 
-REM Notes storage location - UPDATE THIS to your preferred path
-set ZNT_NOTES_BASE=%USERPROFILE%\OneDrive\meeting-notes
+REM Check for .env file
+if not exist "%SCRIPT_DIR%.env" (
+    echo Error: .env file not found at %SCRIPT_DIR%
+    echo Please run bootstrap.bat first.
+    pause
+    exit /b 1
+)
+
+REM Load configuration from .env file
+for /f "usebackq tokens=1,* delims==" %%a in ("%SCRIPT_DIR%.env") do (
+    set "line=%%a"
+    if not "!line:~0,1!"=="#" (
+        if not "%%b"=="" (
+            set "%%a=%%b"
+        )
+    )
+)
+
+REM Use ZNT_PROJECT_DIR from .env, or fall back to script location
+if not defined ZNT_PROJECT_DIR set "ZNT_PROJECT_DIR=%SCRIPT_DIR:~0,-1%"
+set "PROJECT_DIR=%ZNT_PROJECT_DIR%"
 
 REM Change to project directory
 cd /d "%PROJECT_DIR%" || (
     echo Error: Project directory not found at %PROJECT_DIR%
-    echo Please update PROJECT_DIR in this script.
+    echo Please run bootstrap.bat to configure.
     pause
     exit /b 1
 )
