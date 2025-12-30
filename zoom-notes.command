@@ -3,7 +3,7 @@
 # This script can be moved anywhere and run with a double-click
 
 # Project location (absolute path)
-PROJECT_DIR={update_your-project_directory_by running_setup_paths.py}
+PROJECT_DIR="/Volumes/Development/zoom-notes-taker"
 
 # Notes storage location (OneDrive)
 export ZNT_NOTES_BASE="$HOME/Library/CloudStorage/OneDrive-WarnerBros.Discovery/meeting-notes"

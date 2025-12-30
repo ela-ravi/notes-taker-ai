@@ -43,7 +43,37 @@ Automatic meeting notes generator from Zoom meetings using local AI. Captures au
 
 ---
 
-## Installation
+## Quick Start (Recommended)
+
+Use the bootstrap script for automatic setup:
+
+**macOS/Linux:**
+```bash
+git clone <repository-url>
+cd zoom-notes-taker
+./bootstrap.sh
+```
+
+**Windows:**
+```cmd
+git clone <repository-url>
+cd zoom-notes-taker
+bootstrap.bat
+```
+
+The bootstrap script will:
+- Create virtual environment
+- Install all dependencies
+- Configure launch scripts
+- Create `.env` from template
+
+After bootstrap, install Ollama and pull the model (see [Prerequisites](#prerequisites)).
+
+---
+
+## Manual Installation
+
+If you prefer manual setup or the bootstrap script fails:
 
 ### 1. Clone the Repository
 
@@ -72,26 +102,18 @@ venv\Scripts\activate
 pip install -e .
 ```
 
-### 3a. Configure Launch Scripts (IMPORTANT for Windows/macOS)
-
-Run the `setup_paths.py` script to automatically configure the project directory in your `.bat` and `.command` quick launch scripts. This step ensures they work correctly on your system.
+### 4. Create Configuration File
 
 ```bash
-python setup_paths.py
+cp .env.example .env
 ```
 
-### 4. Download Ollama Model
+Edit `.env` to customize settings (see [Configuration](#configuration)).
+
+### 5. Download Ollama Model
 
 ```bash
 ollama pull llama3.1:8b
-```
-
-### 5. Download Whisper Model (automatic on first run)
-
-The Whisper model downloads automatically. To pre-download:
-
-```bash
-python -c "import whisper; whisper.load_model('base')"
 ```
 
 ### 6. Run Setup Check
@@ -99,6 +121,8 @@ python -c "import whisper; whisper.load_model('base')"
 ```bash
 python -m src.main setup
 ```
+
+This verifies all dependencies are correctly installed.
 
 ---
 
@@ -198,8 +222,14 @@ Double-click these scripts to start recording:
 source venv/bin/activate  # macOS/Linux
 venv\Scripts\activate     # Windows
 
-# Start recording a meeting
+# Start recording a meeting (prompts for model selection)
 python -m src.main start --title "My Meeting"
+
+# Start with specific model (skip model selection)
+python -m src.main start --title "My Meeting" --model mistral:latest
+
+# Start with default model (skip model selection)
+python -m src.main start --title "My Meeting" --default-model
 
 # Transcribe an existing audio file
 python -m src.main transcribe path/to/audio.wav --title "Past Meeting"
@@ -213,6 +243,16 @@ python -m src.main devices
 # Show current configuration
 python -m src.main config
 ```
+
+### CLI Options for `start` Command
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--title` | `-t` | Meeting title (required) |
+| `--model` | `-m` | Specify Ollama model to use |
+| `--default-model` | `-d` | Use default model without prompting |
+
+When starting a recording without `--model` or `--default-model`, you'll see a list of available Ollama models to choose from.
 
 ---
 
@@ -282,9 +322,19 @@ Notes are automatically organized based on meeting title:
 
 ## Customizing Scripts
 
-### Ensure Scripts are Configured
+### Reconfigure Scripts After Moving Project
 
-After initial installation or if you move the project, run `python setup_paths.py` to ensure all `.bat` and `.command` files correctly point to the project directory.
+If you move the project to a different directory, re-run the bootstrap script:
+
+**macOS/Linux:**
+```bash
+./bootstrap.sh
+```
+
+**Windows:**
+```cmd
+bootstrap.bat
+```
 
 ### Change Notes Storage Location
 
@@ -354,19 +404,27 @@ ollama pull llama3.1:8b
 ```
 zoom-notes-taker/
 ├── src/
-│   ├── audio/           # Audio capture and device management
-│   ├── llm/             # Ollama client and summarization
-│   ├── notes/           # Notes generation and templates
-│   ├── transcription/   # Whisper transcription engine
-│   ├── utils/           # Utilities and file handling
-│   ├── config.py        # Application settings
-│   ├── config_platform.py  # Platform-specific configs
-│   └── main.py          # CLI entry point
-├── *.command            # macOS launch scripts
-├── *.bat                # Windows launch scripts
-├── .env                 # Configuration (create this)
-├── pyproject.toml       # Python project config
-└── README.md            # This file
+│   ├── audio/              # Audio capture and device management
+│   ├── llm/                # Ollama client and summarization
+│   ├── notes/              # Notes generation and templates
+│   ├── transcription/      # Whisper transcription engine
+│   ├── utils/              # Utilities and file handling
+│   ├── config.py           # Application settings
+│   ├── config_platform.py  # Platform-specific configs (macOS/Windows/Linux)
+│   └── main.py             # CLI entry point
+├── bootstrap.sh            # macOS/Linux setup script
+├── bootstrap.bat           # Windows setup script
+├── zoom-notes.command      # macOS: General meeting launcher
+├── atve-standup.command    # macOS: ATVE standup launcher
+├── tnt-standup.command     # macOS: TNT standup launcher
+├── zoom-notes.bat          # Windows: General meeting launcher
+├── atve-standup.bat        # Windows: ATVE standup launcher
+├── tnt-standup.bat         # Windows: TNT standup launcher
+├── .env.example            # Configuration template
+├── .env                    # Your configuration (create from .env.example)
+├── pyproject.toml          # Python project config
+├── requirements.txt        # Python dependencies
+└── README.md               # This file
 ```
 
 ---
