@@ -178,24 +178,24 @@ This verifies all dependencies are correctly installed.
 
 ## Configuration
 
-Create a `.env` file in the project root:
+The `.env` file is created automatically by the bootstrap script. Key settings:
 
 ```env
-# Audio Settings
-ZNT_AUDIO_DEVICE=Aggregate Device      # macOS: Aggregate Device, Windows: CABLE Output
-ZNT_SAMPLE_RATE=16000
+# Project path (auto-configured by bootstrap)
+ZNT_PROJECT_DIR=/path/to/zoom-notes-taker
 
-# Whisper Settings
+# Audio device
+ZNT_AUDIO_DEVICE=Aggregate Device      # macOS: Aggregate Device, Windows: CABLE Output
+
+# Whisper model
 ZNT_WHISPER_MODEL=base                 # tiny, base, small, medium, large
 ZNT_WHISPER_LANGUAGE=                  # Empty for auto-detect, or: en, ta, es, etc.
 
-# Ollama Settings
+# Ollama model
 ZNT_OLLAMA_MODEL=llama3.1:8b
-ZNT_OLLAMA_HOST=http://localhost:11434
 
-# Output Settings (optional - scripts override this)
-ZNT_OUTPUT_DIR=~/Documents/ZoomNotes/notes
-ZNT_RECORDINGS_DIR=~/Documents/ZoomNotes/recordings
+# Notes storage location
+ZNT_NOTES_BASE=~/Documents/ZoomNotes/notes
 ```
 
 ---
@@ -338,16 +338,17 @@ bootstrap.bat
 
 ### Change Notes Storage Location
 
-Edit the `ZNT_NOTES_BASE` variable in each script:
+Edit `ZNT_NOTES_BASE` in your `.env` file:
 
-**macOS (.command files):**
-```bash
-export ZNT_NOTES_BASE="$HOME/Documents/MyNotes"
-```
+```env
+# macOS example (OneDrive)
+ZNT_NOTES_BASE=~/Library/CloudStorage/OneDrive-YourOrg/meeting-notes
 
-**Windows (.bat files):</b>
-```cmd
-set ZNT_NOTES_BASE=%USERPROFILE%\Documents\MyNotes
+# Windows example
+ZNT_NOTES_BASE=C:\Users\YourName\OneDrive\meeting-notes
+
+# Simple local folder
+ZNT_NOTES_BASE=~/Documents/MyNotes
 ```
 
 ### Create Custom Meeting Scripts
@@ -357,7 +358,6 @@ The provided `atve-standup`, `tnt-standup`, and `zoom-notes` scripts are example
 2. Rename it (e.g., `my-team-meeting.bat`).
 3. Edit the new script:
     *   Change `MEETING_TITLE` for fixed-title meetings.
-    *   Change `ZNT_NOTES_BASE` if you want a different storage location for these specific notes.
 
 
 ---

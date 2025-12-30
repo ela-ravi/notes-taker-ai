@@ -1,22 +1,35 @@
 #!/bin/bash
 # Zoom Notes Taker - Quick Launch Script
-# This script can be moved anywhere and run with a double-click
-
-# Project location (absolute path)
-PROJECT_DIR="/Volumes/Development/zoom-notes-taker"
-
-# Notes storage location (OneDrive)
-export ZNT_NOTES_BASE="$HOME/Library/CloudStorage/OneDrive-WarnerBros.Discovery/meeting-notes"
+# Double-click to run from Finder
 
 # Colors for output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
+
+# Get project directory from script location
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Source .env for configuration
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    set -a
+    source "$SCRIPT_DIR/.env"
+    set +a
+else
+    echo -e "${RED}Error: .env file not found at $SCRIPT_DIR${NC}"
+    echo "Please run bootstrap.sh first."
+    read -p "Press Enter to close..."
+    exit 1
+fi
+
+# Use ZNT_PROJECT_DIR from .env, or fall back to script location
+PROJECT_DIR="${ZNT_PROJECT_DIR:-$SCRIPT_DIR}"
 
 # Change to project directory
 cd "$PROJECT_DIR" || {
-    echo "Error: Project directory not found at $PROJECT_DIR"
-    echo "Please update PROJECT_DIR in this script."
+    echo -e "${RED}Error: Project directory not found at $PROJECT_DIR${NC}"
+    echo "Please run bootstrap.sh to configure."
     read -p "Press Enter to close..."
     exit 1
 }

@@ -21,7 +21,7 @@ echo -e "${NC}"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-echo -e "${BLUE}[1/6]${NC} Checking Python version..."
+echo -e "${BLUE}[1/5]${NC} Checking Python version..."
 PYTHON_VERSION=$(python3 --version 2>&1 | cut -d' ' -f2)
 PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d'.' -f1)
 PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d'.' -f2)
@@ -33,7 +33,7 @@ fi
 echo -e "${GREEN}✓ Python $PYTHON_VERSION${NC}"
 
 echo ""
-echo -e "${BLUE}[2/6]${NC} Creating virtual environment..."
+echo -e "${BLUE}[2/5]${NC} Creating virtual environment..."
 if [ -d "venv" ]; then
     echo -e "${YELLOW}  Virtual environment already exists${NC}"
 else
@@ -42,38 +42,35 @@ else
 fi
 
 echo ""
-echo -e "${BLUE}[3/6]${NC} Activating virtual environment..."
+echo -e "${BLUE}[3/5]${NC} Activating virtual environment..."
 source venv/bin/activate
 echo -e "${GREEN}✓ Activated${NC}"
 
 echo ""
-echo -e "${BLUE}[4/6]${NC} Installing dependencies..."
+echo -e "${BLUE}[4/5]${NC} Installing dependencies..."
 pip install --upgrade pip -q
 pip install -e . -q
 echo -e "${GREEN}✓ Dependencies installed${NC}"
 
 echo ""
-echo -e "${BLUE}[5/6]${NC} Configuring launch scripts..."
-# Update PROJECT_DIR in all .command files
-for script in *.command; do
-    if [ -f "$script" ]; then
-        # Use sed to replace PROJECT_DIR=... with the current directory
-        sed -i.bak "s|^PROJECT_DIR=.*|PROJECT_DIR=\"$SCRIPT_DIR\"|" "$script"
-        rm -f "${script}.bak"
-        echo "  Updated: $script"
-    fi
-done
-echo -e "${GREEN}✓ Scripts configured${NC}"
-
-echo ""
-echo -e "${BLUE}[6/6]${NC} Setting up configuration..."
+echo -e "${BLUE}[5/5]${NC} Setting up configuration..."
+# Create .env from template if it doesn't exist
 if [ -f ".env" ]; then
-    echo -e "${YELLOW}  .env file already exists (keeping existing)${NC}"
+    echo -e "${YELLOW}  .env file already exists (keeping existing settings)${NC}"
 else
     cp .env.example .env
     echo -e "${GREEN}✓ Created .env from .env.example${NC}"
-    echo -e "${YELLOW}  → Edit .env to customize your settings${NC}"
 fi
+
+# Set project path in .env
+if grep -q "^ZNT_PROJECT_DIR=" .env; then
+    sed -i.bak "s|^ZNT_PROJECT_DIR=.*|ZNT_PROJECT_DIR=$SCRIPT_DIR|" .env
+    rm -f .env.bak
+else
+    echo "ZNT_PROJECT_DIR=$SCRIPT_DIR" >> .env
+fi
+echo -e "${GREEN}✓ Project path: $SCRIPT_DIR${NC}"
+echo -e "${YELLOW}  → Edit .env to customize other settings${NC}"
 
 # Make scripts executable
 chmod +x *.command 2>/dev/null || true
