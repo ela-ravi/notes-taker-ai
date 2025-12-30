@@ -1,8 +1,63 @@
 """File utility functions."""
 
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+# Meeting type folders
+MEETING_FOLDERS = {
+    "atve": "atve-meeting-notes",
+    "tnt": "tnt-meeting-notes",
+    "general": "general",
+}
+
+
+def get_notes_base_path() -> Path:
+    """Get the base path for meeting notes from environment variable."""
+    base = os.environ.get("ZNT_NOTES_BASE")
+    if base:
+        return Path(base)
+    # Fallback to default
+    return Path.home() / "Documents/ZoomNotes/notes"
+
+
+def get_meeting_folder(title: str) -> str:
+    """
+    Determine the appropriate folder based on meeting title.
+
+    Args:
+        title: Meeting title
+
+    Returns:
+        Folder name (atve-meeting-notes, tnt-meeting-notes, or general)
+    """
+    title_lower = title.lower()
+
+    # Check for ATVE keywords
+    if any(keyword in title_lower for keyword in ["atve", "at&ve", "at & ve"]):
+        return MEETING_FOLDERS["atve"]
+
+    # Check for TNT keywords
+    if any(keyword in title_lower for keyword in ["tnt", "sports"]):
+        return MEETING_FOLDERS["tnt"]
+
+    # Default to general
+    return MEETING_FOLDERS["general"]
+
+
+def get_smart_output_dir(title: str) -> Path:
+    """
+    Get the output directory based on meeting title.
+
+    Args:
+        title: Meeting title
+
+    Returns:
+        Path to the appropriate output directory
+    """
+    folder = get_meeting_folder(title)
+    return get_notes_base_path() / folder
 
 
 def ensure_directory(path: Path) -> Path:

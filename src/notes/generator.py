@@ -10,7 +10,7 @@ from ..config import get_settings
 from ..llm.ollama_client import OllamaClient
 from ..llm.summarizer import MeetingSummarizer
 from ..transcription.livekit_engine import LiveKitEngine, TranscriptionResult
-from ..utils.file_utils import get_output_path, get_recording_path
+from ..utils.file_utils import get_output_path, get_recording_path, get_smart_output_dir
 from ..utils.logging_config import get_logger
 from .models import (
     ActionItem,
@@ -20,7 +20,7 @@ from .models import (
     Speaker,
     TranscriptSegment,
 )
-from .templates import render_meeting_notes
+from .templates import render_meeting_notes, render_meeting_notes_html
 
 logger = get_logger("notes.generator")
 
@@ -248,23 +248,31 @@ class NotesGenerator:
 
     def save_notes(self, notes: MeetingNotes, path: Path) -> None:
         """
-        Save meeting notes to a markdown file.
+        Save meeting notes to markdown and HTML files.
 
         Args:
             notes: MeetingNotes object
-            path: Output file path
+            path: Output file path (for markdown)
         """
         path.parent.mkdir(parents=True, exist_ok=True)
 
+        # Save markdown
         markdown = render_meeting_notes(notes)
         path.write_text(markdown, encoding="utf-8")
+        logger.info(f"Markdown notes saved to: {path}")
 
-        logger.info(f"Notes saved to: {path}")
+        # Save HTML
+        html_path = path.with_suffix(".html")
+        html_content = render_meeting_notes_html(notes)
+        html_path.write_text(html_content, encoding="utf-8")
+        logger.info(f"HTML notes saved to: {html_path}")
 
     def get_default_output_path(self, title: str) -> Path:
-        """Get the default output path for a meeting."""
-        self.settings.ensure_directories()
-        return get_output_path(self.settings.output_dir, title)
+        """Get the default output path for a meeting based on title."""
+        # Use smart folder selection based on meeting title
+        output_dir = get_smart_output_dir(title)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return get_output_path(output_dir, title)
 
 
 class MeetingRecorder:

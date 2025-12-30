@@ -93,3 +93,7 @@ logs/
 tmp/
 temp/
 *.tmp
+
+# Exclude meeting specific command files
+*.command
+!zoom-notes.command

@@ -120,9 +120,16 @@ def start(title: str):
                         ))
 
                         if _recorder.current_session and _recorder.current_session.notes_path:
-                            console.print(
-                                f"\n[green]Notes saved to:[/green] {_recorder.current_session.notes_path}"
-                            )
+                            md_path = Path(_recorder.current_session.notes_path)
+                            html_path = md_path.with_suffix(".html")
+                            folder_name = md_path.parent.name
+                            console.print(f"\n[green]Notes saved to:[/green] [cyan]{folder_name}[/cyan]")
+                            console.print(f"  Markdown: {md_path}")
+                            console.print(f"  HTML:     {html_path}")
+
+                            # Auto-open HTML in browser
+                            import webbrowser
+                            webbrowser.open(f"file://{html_path.absolute()}")
 
                     except Exception as e:
                         console.print(f"[red]Error generating notes:[/red] {e}")
@@ -185,7 +192,14 @@ def transcribe(audio_file: Path, output: Optional[Path], title: str):
             border_style="green",
         ))
 
-        console.print(f"\n[green]Notes saved to:[/green] {output_path}")
+        html_path = output_path.with_suffix(".html")
+        console.print(f"\n[green]Notes saved:[/green]")
+        console.print(f"  Markdown: {output_path}")
+        console.print(f"  HTML:     {html_path}")
+
+        # Auto-open HTML in browser
+        import webbrowser
+        webbrowser.open(f"file://{html_path.absolute()}")
 
     asyncio.run(run_transcription())
 

@@ -1,4 +1,4 @@
-"""Markdown templates for meeting notes."""
+"""Markdown and HTML templates for meeting notes."""
 
 MEETING_NOTES_TEMPLATE = """# {title}
 
@@ -230,4 +230,472 @@ def render_simple_notes(title: str, date: datetime, duration: float, summary: st
         summary=summary or "No summary available.",
         key_points=format_key_points(key_points),
         transcript=transcript or "No transcript available.",
+    )
+
+
+# HTML Template with embedded CSS
+HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title} - Meeting Notes</title>
+    <style>
+        :root {{
+            --primary: #2563eb;
+            --primary-light: #3b82f6;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }}
+
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }}
+
+        .container {{
+            max-width: 900px;
+            margin: 0 auto;
+        }}
+
+        .header {{
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }}
+
+        .header h1 {{
+            font-size: 1.75rem;
+            margin-bottom: 1rem;
+        }}
+
+        .meta {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            font-size: 0.9rem;
+            opacity: 0.95;
+        }}
+
+        .meta-item {{
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }}
+
+        .meta-item svg {{
+            width: 16px;
+            height: 16px;
+        }}
+
+        .card {{
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border);
+        }}
+
+        .card h2 {{
+            font-size: 1.1rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }}
+
+        .card h2 svg {{
+            width: 20px;
+            height: 20px;
+        }}
+
+        .summary {{
+            font-size: 1rem;
+            color: var(--text);
+        }}
+
+        .key-points ul {{
+            list-style: none;
+            padding: 0;
+        }}
+
+        .key-points li {{
+            padding: 0.75rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+            border-bottom: 1px solid var(--border);
+        }}
+
+        .key-points li:last-child {{
+            border-bottom: none;
+        }}
+
+        .key-points li::before {{
+            content: "•";
+            color: var(--primary);
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+        }}
+
+        .action-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }}
+
+        .action-table th {{
+            background: var(--bg);
+            padding: 0.75rem;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-muted);
+            border-bottom: 2px solid var(--border);
+        }}
+
+        .action-table td {{
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }}
+
+        .action-table tr:hover {{
+            background: var(--bg);
+        }}
+
+        .decision {{
+            padding: 1rem;
+            background: var(--bg);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--primary);
+        }}
+
+        .decision:last-child {{
+            margin-bottom: 0;
+        }}
+
+        .decision h4 {{
+            color: var(--text);
+            margin-bottom: 0.5rem;
+        }}
+
+        .decision p {{
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }}
+
+        .transcript {{
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        }}
+
+        .transcript-toggle {{
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }}
+
+        .transcript-toggle::after {{
+            content: "▼";
+            font-size: 0.7rem;
+            transition: transform 0.2s;
+        }}
+
+        .transcript-content {{
+            display: none;
+            margin-top: 1rem;
+        }}
+
+        .transcript-content.show {{
+            display: block;
+        }}
+
+        .footer {{
+            text-align: center;
+            padding: 1.5rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }}
+
+        .badge {{
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            background: var(--bg);
+            color: var(--text-muted);
+        }}
+
+        .badge-primary {{
+            background: var(--primary);
+            color: white;
+        }}
+
+        @media (max-width: 640px) {{
+            body {{
+                padding: 1rem;
+            }}
+
+            .header {{
+                padding: 1.5rem;
+            }}
+
+            .meta {{
+                flex-direction: column;
+                gap: 0.75rem;
+            }}
+        }}
+
+        @media print {{
+            body {{
+                background: white;
+                padding: 0;
+            }}
+
+            .card {{
+                box-shadow: none;
+                border: 1px solid #ddd;
+            }}
+
+            .transcript {{
+                max-height: none;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{title}</h1>
+            <div class="meta">
+                <div class="meta-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <span>{date}</span>
+                </div>
+                <div class="meta-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span>{duration}</span>
+                </div>
+                <div class="meta-item">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    <span>{speakers}</span>
+                </div>
+                {meeting_type_badge}
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Summary
+            </h2>
+            <div class="summary">{summary}</div>
+        </div>
+
+        <div class="card key-points">
+            <h2>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                Key Points
+            </h2>
+            <ul>
+{key_points_html}
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                Action Items
+            </h2>
+            {action_items_html}
+        </div>
+
+        <div class="card">
+            <h2>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Decisions Made
+            </h2>
+            {decisions_html}
+        </div>
+
+        <div class="card">
+            <h2 class="transcript-toggle" onclick="toggleTranscript()">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                Full Transcript
+            </h2>
+            <div class="transcript-content" id="transcript">
+                <div class="transcript">{transcript}</div>
+            </div>
+        </div>
+
+        <div class="footer">
+            Generated by Zoom Notes Taker on {generation_date}
+        </div>
+    </div>
+
+    <script>
+        function toggleTranscript() {{
+            const content = document.getElementById('transcript');
+            content.classList.toggle('show');
+        }}
+    </script>
+</body>
+</html>
+"""
+
+
+def format_key_points_html(points: list[str]) -> str:
+    """Format key points as HTML list items."""
+    if not points:
+        return "                <li>No key points extracted</li>"
+    return "\n".join(f"                <li>{point}</li>" for point in points)
+
+
+def format_action_items_html(items: list) -> str:
+    """Format action items as HTML table."""
+    if not items:
+        return '<p style="color: var(--text-muted);">No action items identified.</p>'
+
+    rows = []
+    for item in items:
+        if hasattr(item, "description"):
+            task = item.description
+            assignee = item.assignee or "-"
+        else:
+            task = getattr(item, "task", str(item))
+            assignee = getattr(item, "assignee", "-") or "-"
+        due = getattr(item, "due_date", None) or getattr(item, "deadline", None) or "-"
+        rows.append(f"                <tr><td>{task}</td><td>{assignee}</td><td>{due}</td></tr>")
+
+    return f"""<table class="action-table">
+                <thead>
+                    <tr><th>Task</th><th>Assigned To</th><th>Due Date</th></tr>
+                </thead>
+                <tbody>
+{chr(10).join(rows)}
+                </tbody>
+            </table>"""
+
+
+def format_decisions_html(decisions: list) -> str:
+    """Format decisions as HTML."""
+    if not decisions:
+        return '<p style="color: var(--text-muted);">No decisions recorded.</p>'
+
+    items = []
+    for i, decision in enumerate(decisions, 1):
+        if hasattr(decision, "description"):
+            desc = decision.description
+            rationale = decision.rationale
+        else:
+            desc = getattr(decision, "decision", str(decision))
+            rationale = getattr(decision, "rationale", None)
+
+        rationale_html = f"<p><strong>Rationale:</strong> {rationale}</p>" if rationale else ""
+        items.append(f"""            <div class="decision">
+                <h4>Decision {i}: {desc}</h4>
+                {rationale_html}
+            </div>""")
+
+    return "\n".join(items)
+
+
+def render_meeting_notes_html(notes) -> str:
+    """
+    Render MeetingNotes to HTML.
+
+    Args:
+        notes: MeetingNotes object
+
+    Returns:
+        Formatted HTML string
+    """
+    from datetime import datetime
+    import html
+
+    # Format meeting type badge
+    meeting_type_badge = ""
+    if hasattr(notes, "meeting_type") and notes.meeting_type and notes.meeting_type != "other":
+        meeting_type_badge = f'<span class="badge badge-primary">{notes.meeting_type.title()}</span>'
+
+    # Format components
+    key_points_html = format_key_points_html(notes.key_points)
+    action_items_html = format_action_items_html(notes.action_items)
+    decisions_html = format_decisions_html(notes.decisions)
+    speakers = format_speakers(notes.speakers) if notes.speakers else "Unknown"
+
+    # Get transcript
+    if hasattr(notes, "formatted_transcript"):
+        transcript = notes.formatted_transcript
+    elif hasattr(notes, "transcript_segments"):
+        lines = []
+        for seg in notes.transcript_segments:
+            speaker = getattr(seg, "speaker_label", "Unknown")
+            timestamp = getattr(seg, "timestamp", "")
+            lines.append(f"{timestamp} [{speaker}]: {seg.text}")
+        transcript = "\n".join(lines)
+    else:
+        transcript = notes.full_transcript if hasattr(notes, "full_transcript") else ""
+
+    if not transcript:
+        transcript = "No transcript available."
+
+    # Escape HTML in transcript
+    transcript = html.escape(transcript)
+
+    # Format dates
+    if hasattr(notes, "formatted_date"):
+        date_str = notes.formatted_date
+    else:
+        date_str = notes.date.strftime("%B %d, %Y at %H:%M")
+
+    if hasattr(notes, "formatted_duration"):
+        duration_str = notes.formatted_duration
+    else:
+        duration_str = f"{int(notes.duration_minutes)} minutes"
+
+    generation_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    return HTML_TEMPLATE.format(
+        title=html.escape(notes.title),
+        date=date_str,
+        duration=duration_str,
+        speakers=html.escape(speakers),
+        meeting_type_badge=meeting_type_badge,
+        summary=html.escape(notes.summary or "No summary available."),
+        key_points_html=key_points_html,
+        action_items_html=action_items_html,
+        decisions_html=decisions_html,
+        transcript=transcript,
+        generation_date=generation_date,
     )

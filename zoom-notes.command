@@ -5,6 +5,9 @@
 # Project location (absolute path)
 PROJECT_DIR="/Volumes/Development/zoom-notes-taker"
 
+# Notes storage location (OneDrive)
+export ZNT_NOTES_BASE="$HOME/Library/CloudStorage/OneDrive-WarnerBros.Discovery/meeting-notes"
+
 # Colors for output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
