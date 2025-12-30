@@ -5,6 +5,10 @@ from typing import Optional
 
 import sounddevice as sd
 
+from ..config_platform import (
+    get_virtual_audio_names,
+    get_audio_install_instructions,
+)
 from ..utils.logging_config import get_logger
 
 logger = get_logger("audio.device")
@@ -116,12 +120,32 @@ class AudioDeviceManager:
 
     def check_blackhole_installed(self) -> bool:
         """
-        Check if BlackHole is installed.
+        Check if a virtual audio device is installed (BlackHole on macOS, VB-Cable on Windows).
 
         Returns:
-            True if BlackHole is found
+            True if a virtual audio device is found
         """
-        return self.find_blackhole_device() is not None
+        return self.find_virtual_audio_device() is not None
+
+    def find_virtual_audio_device(self) -> Optional[AudioDevice]:
+        """
+        Find a virtual audio device for the current platform.
+
+        Returns:
+            AudioDevice if found, None otherwise
+        """
+        device_names = get_virtual_audio_names()
+
+        for name in device_names:
+            device = self.find_device(name)
+            if device and device.is_input:
+                return device
+
+        return None
+
+    def get_virtual_audio_install_instructions(self) -> str:
+        """Get installation instructions for virtual audio driver."""
+        return get_audio_install_instructions()
 
     def print_devices(self) -> None:
         """Print all available audio devices."""

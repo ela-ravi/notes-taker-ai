@@ -7,20 +7,18 @@ Automatic meeting notes generator from Zoom meetings using local AI.
 import asyncio
 import signal
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import click
 from rich.console import Console
-from rich.live import Live
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from rich.table import Table
-from rich.text import Text
 
 from .audio.device import AudioDeviceManager
-from .config import get_settings, reload_settings
+from .config import get_settings
+from .config_platform import get_platform_config
 from .llm.ollama_client import OllamaClient
 from .notes.generator import MeetingRecorder, NotesGenerator
 from .transcription.livekit_engine import TranscriptSegment
@@ -146,7 +144,7 @@ def transcribe(audio_file: Path, output: Optional[Path], title: str):
     """Transcribe an existing audio file and generate notes."""
     console.print(f"[blue]Transcribing:[/blue] {audio_file}")
 
-    def on_progress(message: str, percentage: float):
+    def on_progress(_message: str, _percentage: float):
         pass  # Progress is shown via Progress bar
 
     async def run_transcription():
@@ -207,8 +205,11 @@ def transcribe(audio_file: Path, output: Optional[Path], title: str):
 @cli.command()
 def setup():
     """Run initial setup and check dependencies."""
+    platform_cfg = get_platform_config()
+
     console.print(Panel(
-        "[bold]Zoom Notes Taker Setup[/bold]\n\n"
+        f"[bold]Zoom Notes Taker Setup[/bold]\n\n"
+        f"Platform: {platform_cfg.name}\n"
         "Checking system requirements...",
         title="Setup",
     ))
@@ -220,15 +221,17 @@ def setup():
     py_ok = py_version >= (3, 10)
     checks.append(("Python 3.10+", py_ok, f"{py_version.major}.{py_version.minor}.{py_version.micro}"))
 
-    # Check BlackHole
+    # Check Virtual Audio Device (platform-specific)
     device_manager = AudioDeviceManager()
-    blackhole_ok = device_manager.check_blackhole_installed()
-    checks.append(("BlackHole Audio", blackhole_ok, "Install: brew install blackhole-2ch"))
+    virtual_audio_ok = device_manager.check_blackhole_installed()
+    audio_device_name = platform_cfg.audio.virtual_audio_device.split()[0]  # First word (BlackHole, CABLE, etc.)
+    checks.append((f"{audio_device_name} Audio", virtual_audio_ok, platform_cfg.audio.install_instructions))
 
     # Check Ollama
     ollama_client = OllamaClient()
     ollama_ok = ollama_client.check_connection()
-    checks.append(("Ollama Server", ollama_ok, "Install: brew install ollama && ollama serve"))
+    ollama_install = "brew install ollama && ollama serve" if platform_cfg.name == "macOS" else "https://ollama.ai"
+    checks.append(("Ollama Server", ollama_ok, ollama_install))
 
     # Check Ollama model
     model_ok = False
@@ -238,18 +241,16 @@ def setup():
     checks.append((f"Ollama Model ({settings.ollama_model})", model_ok, f"Run: ollama pull {settings.ollama_model}"))
 
     # Check WhisperLiveKit
-    try:
-        import whisperlivekit
+    import importlib.util
+    if importlib.util.find_spec("whisperlivekit"):
         whisper_ok = True
         whisper_msg = "Installed"
-    except ImportError:
-        try:
-            import whisper
-            whisper_ok = True
-            whisper_msg = "Fallback to openai-whisper"
-        except ImportError:
-            whisper_ok = False
-            whisper_msg = "Run: pip install whisperlivekit"
+    elif importlib.util.find_spec("whisper"):
+        whisper_ok = True
+        whisper_msg = "Fallback to openai-whisper"
+    else:
+        whisper_ok = False
+        whisper_msg = "Run: pip install whisperlivekit"
     checks.append(("WhisperLiveKit/Whisper", whisper_ok, whisper_msg))
 
     # Display results
@@ -275,16 +276,12 @@ def setup():
     else:
         console.print("[yellow]Some requirements are missing. Please install them before using.[/yellow]")
 
-    # Show audio setup instructions if BlackHole is installed but needs configuration
-    if blackhole_ok:
+    # Show platform-specific audio setup instructions
+    if virtual_audio_ok:
         console.print()
         console.print(Panel(
-            "[bold]Audio Setup Instructions:[/bold]\n\n"
-            "1. Open [cyan]Audio MIDI Setup[/cyan] (search in Spotlight)\n"
-            "2. Click [cyan]+[/cyan] at bottom left → Create Multi-Output Device\n"
-            "3. Check both your speakers AND BlackHole 2ch\n"
-            "4. Set Multi-Output Device as your system output\n"
-            "5. In Zoom, use this Multi-Output Device for audio",
+            f"[bold]{platform_cfg.name} Audio Setup:[/bold]\n\n"
+            f"{platform_cfg.audio.setup_instructions}",
             title="Configure Audio Routing",
             border_style="blue",
         ))
