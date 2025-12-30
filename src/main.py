@@ -44,14 +44,87 @@ def cli(verbose: bool):
     setup_logging(level=level)
 
 
+def select_ollama_model() -> str:
+    """Display available Ollama models and let user select one."""
+    settings = get_settings()
+    default_model = settings.ollama_model
+
+    # Get available models
+    ollama_client = OllamaClient()
+    if not ollama_client.check_connection():
+        console.print("[yellow]Warning: Cannot connect to Ollama. Using default model.[/yellow]")
+        return default_model
+
+    available_models = ollama_client.list_models()
+
+    if not available_models:
+        console.print("[yellow]No models found in Ollama. Using default.[/yellow]")
+        return default_model
+
+    # Display available models
+    console.print("\n[bold cyan]Available Ollama Models:[/bold cyan]")
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("#", style="dim", width=4)
+    table.add_column("Model", style="cyan")
+    table.add_column("", style="green")
+
+    for idx, model in enumerate(available_models, 1):
+        is_default = "(default)" if default_model in model or model.startswith(default_model.split(":")[0]) else ""
+        table.add_row(str(idx), model, is_default)
+
+    console.print(table)
+
+    # Prompt for selection
+    console.print(f"\n[dim]Press Enter to use default ({default_model})[/dim]")
+    choice = click.prompt(
+        "Select model number or name",
+        default="",
+        show_default=False,
+    )
+
+    if not choice:
+        return default_model
+
+    # Handle numeric selection
+    if choice.isdigit():
+        idx = int(choice) - 1
+        if 0 <= idx < len(available_models):
+            return available_models[idx]
+        console.print("[yellow]Invalid selection, using default.[/yellow]")
+        return default_model
+
+    # Handle name input - check if it matches any available model
+    for model in available_models:
+        if choice.lower() in model.lower():
+            return model
+
+    console.print(f"[yellow]Model '{choice}' not found, using default.[/yellow]")
+    return default_model
+
+
 @cli.command()
 @click.option("--title", "-t", prompt="Meeting title", help="Title for the meeting")
-def start(title: str):
+@click.option("--model", "-m", default=None, help="Ollama model to use (default: from config)")
+@click.option("--default-model", "-d", is_flag=True, help="Use default model without prompting")
+def start(title: str, model: Optional[str], default_model: bool):
     """Start recording a Zoom meeting."""
     global _recorder, _stop_event
 
+    # Select model
+    if model is not None:
+        selected_model = model
+    elif default_model:
+        selected_model = get_settings().ollama_model
+    else:
+        selected_model = select_ollama_model()
+
+    # Update settings with selected model
+    settings = get_settings()
+    settings.ollama_model = selected_model
+
     console.print(Panel(
-        f"[bold green]Recording:[/bold green] {title}\n\n"
+        f"[bold green]Recording:[/bold green] {title}\n"
+        f"[bold blue]Model:[/bold blue] {selected_model}\n\n"
         "Press [bold]Ctrl+C[/bold] to stop recording and generate notes.",
         title="Zoom Notes Taker",
     ))

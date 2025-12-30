@@ -38,8 +38,8 @@ echo Starting recording: %MEETING_TITLE%
 echo Press Ctrl+C to stop and generate notes.
 echo.
 
-REM Run the application with fixed title
-python -m src.main start --title "%MEETING_TITLE%"
+REM Run the application with fixed title and default model
+python -m src.main start --title "%MEETING_TITLE%" --default-model
 
 REM Keep window open after completion
 echo.
