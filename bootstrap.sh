@@ -74,6 +74,7 @@ echo -e "${YELLOW}  → Edit .env to customize other settings${NC}"
 
 # Make scripts executable
 chmod +x *.command 2>/dev/null || true
+chmod +x scripts/*.sh 2>/dev/null || true
 
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
@@ -83,14 +84,14 @@ echo ""
 echo -e "${BLUE}Next steps:${NC}"
 echo ""
 echo "  1. Install and start Ollama:"
-echo -e "     ${YELLOW}brew install ollama${NC}  (macOS)"
+echo -e "     ${YELLOW}brew install ollama${NC}"
 echo -e "     ${YELLOW}ollama serve${NC}"
 echo ""
 echo "  2. Pull the LLM model:"
 echo -e "     ${YELLOW}ollama pull llama3.1:8b${NC}"
 echo ""
-echo "  3. Configure audio (see README.md for detailed instructions):"
-echo -e "     ${YELLOW}python -m src.main setup${NC}"
+echo "  3. Set up audio (installs BlackHole & creates virtual devices):"
+echo -e "     ${YELLOW}./scripts/setup-audio-macos.sh${NC}"
 echo ""
 echo "  4. Edit .env if needed:"
 echo -e "     ${YELLOW}nano .env${NC}"

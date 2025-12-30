@@ -93,16 +93,13 @@ echo.
 echo   2. Pull the LLM model:
 echo      ollama pull llama3.1:8b
 echo.
-echo   3. Install VB-Cable (virtual audio):
-echo      Download from: https://vb-audio.com/Cable/
+echo   3. Set up audio (installs VB-Cable):
+echo      scripts\setup-audio-windows.bat
 echo.
-echo   4. Configure audio (see README.md for detailed instructions):
-echo      python -m src.main setup
-echo.
-echo   5. Edit .env if needed:
+echo   4. Edit .env if needed:
 echo      notepad .env
 echo.
-echo   6. Start recording:
+echo   5. Start recording:
 echo      Double-click zoom-notes.bat
 echo.
 goto :end
