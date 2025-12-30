@@ -1,0 +1,246 @@
+"""Meeting summarization using Ollama LLM."""
+
+from dataclasses import dataclass, field
+from typing import Optional
+
+from ..utils.logging_config import get_logger
+from .ollama_client import OllamaClient
+from .prompts import (
+    ACTION_ITEMS_PROMPT,
+    DECISIONS_PROMPT,
+    KEY_POINTS_PROMPT,
+    MEETING_TYPE_PROMPT,
+    SUMMARY_PROMPT,
+    SYSTEM_PROMPT,
+)
+
+logger = get_logger("llm.summarizer")
+
+
+@dataclass
+class ActionItem:
+    """An action item from the meeting."""
+
+    task: str
+    assignee: Optional[str] = None
+    deadline: Optional[str] = None
+
+
+@dataclass
+class Decision:
+    """A decision made during the meeting."""
+
+    decision: str
+    rationale: Optional[str] = None
+    stakeholders: list[str] = field(default_factory=list)
+
+
+@dataclass
+class MeetingSummary:
+    """Complete meeting summary from LLM analysis."""
+
+    summary: str = ""
+    key_points: list[str] = field(default_factory=list)
+    action_items: list[ActionItem] = field(default_factory=list)
+    decisions: list[Decision] = field(default_factory=list)
+    meeting_type: str = "other"
+
+
+class MeetingSummarizer:
+    """
+    Summarizes meeting transcripts using Ollama LLM.
+
+    This class orchestrates multiple LLM calls to extract different
+    types of information from a meeting transcript.
+    """
+
+    def __init__(self, client: Optional[OllamaClient] = None):
+        """
+        Initialize the summarizer.
+
+        Args:
+            client: OllamaClient instance (created if not provided)
+        """
+        self.client = client or OllamaClient()
+
+    def summarize(self, transcript: str) -> MeetingSummary:
+        """
+        Generate a complete meeting summary.
+
+        Args:
+            transcript: The meeting transcript text
+
+        Returns:
+            MeetingSummary with all extracted information
+        """
+        logger.info("Starting meeting summarization...")
+
+        if not transcript or len(transcript.strip()) < 50:
+            logger.warning("Transcript too short for meaningful analysis")
+            return MeetingSummary(
+                summary="Transcript too short for analysis.",
+                meeting_type="other",
+            )
+
+        summary = MeetingSummary()
+
+        # Generate summary
+        try:
+            summary.summary = self._generate_summary(transcript)
+            logger.info("Generated summary")
+        except Exception as e:
+            logger.error(f"Error generating summary: {e}")
+            summary.summary = "Error generating summary."
+
+        # Extract key points
+        try:
+            summary.key_points = self._extract_key_points(transcript)
+            logger.info(f"Extracted {len(summary.key_points)} key points")
+        except Exception as e:
+            logger.error(f"Error extracting key points: {e}")
+
+        # Extract action items
+        try:
+            summary.action_items = self._extract_action_items(transcript)
+            logger.info(f"Extracted {len(summary.action_items)} action items")
+        except Exception as e:
+            logger.error(f"Error extracting action items: {e}")
+
+        # Extract decisions
+        try:
+            summary.decisions = self._extract_decisions(transcript)
+            logger.info(f"Extracted {len(summary.decisions)} decisions")
+        except Exception as e:
+            logger.error(f"Error extracting decisions: {e}")
+
+        # Detect meeting type
+        try:
+            summary.meeting_type = self._detect_meeting_type(transcript)
+            logger.info(f"Meeting type: {summary.meeting_type}")
+        except Exception as e:
+            logger.error(f"Error detecting meeting type: {e}")
+            summary.meeting_type = "other"
+
+        return summary
+
+    def _generate_summary(self, transcript: str) -> str:
+        """Generate a concise summary of the meeting."""
+        prompt = SUMMARY_PROMPT.format(transcript=self._truncate(transcript, 8000))
+        response = self.client.generate(prompt, system=SYSTEM_PROMPT)
+        return response.strip()
+
+    def _extract_key_points(self, transcript: str) -> list[str]:
+        """Extract key points from the transcript."""
+        prompt = KEY_POINTS_PROMPT.format(transcript=self._truncate(transcript, 8000))
+        response = self.client.generate(prompt, system=SYSTEM_PROMPT)
+
+        # Parse numbered list
+        points = []
+        for line in response.strip().split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            # Remove numbering
+            if line[0].isdigit():
+                # Remove "1." or "1)" style numbering
+                parts = line.split(".", 1)
+                if len(parts) > 1 and parts[0].strip().isdigit():
+                    line = parts[1].strip()
+                else:
+                    parts = line.split(")", 1)
+                    if len(parts) > 1 and parts[0].strip().isdigit():
+                        line = parts[1].strip()
+            # Remove bullet points
+            line = line.lstrip("-•* ")
+            if line:
+                points.append(line)
+
+        return points[:10]  # Limit to 10 points
+
+    def _extract_action_items(self, transcript: str) -> list[ActionItem]:
+        """Extract action items from the transcript."""
+        prompt = ACTION_ITEMS_PROMPT.format(transcript=self._truncate(transcript, 8000))
+        result = self.client.generate_json(prompt, system=SYSTEM_PROMPT)
+
+        if not result or not isinstance(result, list):
+            return []
+
+        action_items = []
+        for item in result:
+            if isinstance(item, dict) and "task" in item:
+                action_items.append(
+                    ActionItem(
+                        task=item.get("task", ""),
+                        assignee=item.get("assignee"),
+                        deadline=item.get("deadline"),
+                    )
+                )
+
+        return action_items
+
+    def _extract_decisions(self, transcript: str) -> list[Decision]:
+        """Extract decisions from the transcript."""
+        prompt = DECISIONS_PROMPT.format(transcript=self._truncate(transcript, 8000))
+        result = self.client.generate_json(prompt, system=SYSTEM_PROMPT)
+
+        if not result or not isinstance(result, list):
+            return []
+
+        decisions = []
+        for item in result:
+            if isinstance(item, dict) and "decision" in item:
+                decisions.append(
+                    Decision(
+                        decision=item.get("decision", ""),
+                        rationale=item.get("rationale"),
+                        stakeholders=item.get("stakeholders", []),
+                    )
+                )
+
+        return decisions
+
+    def _detect_meeting_type(self, transcript: str) -> str:
+        """Detect the type of meeting."""
+        prompt = MEETING_TYPE_PROMPT.format(transcript=transcript[:500])
+        response = self.client.generate(prompt, system=SYSTEM_PROMPT)
+
+        # Clean and validate response
+        meeting_type = response.strip().lower()
+        valid_types = {
+            "standup",
+            "planning",
+            "retrospective",
+            "review",
+            "brainstorm",
+            "one-on-one",
+            "all-hands",
+            "other",
+        }
+
+        if meeting_type in valid_types:
+            return meeting_type
+
+        # Try to match partial
+        for valid in valid_types:
+            if valid in meeting_type:
+                return valid
+
+        return "other"
+
+    def _truncate(self, text: str, max_chars: int) -> str:
+        """Truncate text to maximum characters."""
+        if len(text) <= max_chars:
+            return text
+        return text[:max_chars] + "\n\n[Transcript truncated for analysis...]"
+
+    def generate_quick_summary(self, transcript: str) -> str:
+        """
+        Generate only a quick summary (faster).
+
+        Args:
+            transcript: Meeting transcript
+
+        Returns:
+            Summary text
+        """
+        return self._generate_summary(transcript)
