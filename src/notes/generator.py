@@ -172,8 +172,16 @@ class NotesGenerator:
         transcription: TranscriptionResult,
         title: str,
         duration_minutes: float,
+        custom_context: Optional[str] = None,
     ) -> MeetingNotes:
-        """Generate notes from a transcription result."""
+        """Generate notes from a transcription result.
+
+        Args:
+            transcription: The transcription result
+            title: Meeting title
+            duration_minutes: Meeting duration
+            custom_context: Optional user-provided context/instructions
+        """
         # Get summarizer
         summarizer = self._get_summarizer()
 
@@ -188,7 +196,7 @@ class NotesGenerator:
             transcript_text = ""
 
         # Generate summary using LLM
-        summary_result = summarizer.summarize(transcript_text)
+        summary_result = summarizer.summarize(transcript_text, custom_context=custom_context)
 
         self._report_progress("Extracting insights...", 75)
 
@@ -306,17 +314,20 @@ class MeetingRecorder:
         self._capture: Optional[AudioCapture] = None
         self._processor: Optional[TranscriptionProcessor] = None
         self._generator = NotesGenerator(on_progress=on_progress)
+        self._custom_context: Optional[str] = None
 
-    async def start(self, title: str = "Meeting") -> MeetingSession:
+    async def start(self, title: str = "Meeting", custom_context: Optional[str] = None) -> MeetingSession:
         """
         Start recording a meeting.
 
         Args:
             title: Meeting title
+            custom_context: Optional user-provided context/instructions for notes
 
         Returns:
             MeetingSession object
         """
+        self._custom_context = custom_context
         from ..audio.capture import AudioCapture
         from ..transcription.processor import TranscriptionProcessor
         from ..transcription.livekit_engine import LiveKitEngine
@@ -394,6 +405,7 @@ class MeetingRecorder:
             transcription=transcription,
             title=self._session.title,
             duration_minutes=self._session.duration_minutes,
+            custom_context=self._custom_context,
         )
 
         # Save notes

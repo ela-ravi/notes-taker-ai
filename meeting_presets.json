@@ -1,0 +1,23 @@
+{
+  "ATVE Standup": {
+    "title": "ATVE Standup",
+    "context": "Focus on blockers, progress updates, and sprint goals",
+    "model": "llama3.1:8b",
+    "whisper_model": "base",
+    "auto_start": true
+  },
+  "TNT Sports Standup": {
+    "title": "TNT Sports Standup",
+    "context": "Focus on blockers, progress updates, and sprint goals",
+    "model": "llama3.1:8b",
+    "whisper_model": "base",
+    "auto_start": true
+  },
+  "General Meeting": {
+    "title": "",
+    "context": "",
+    "model": "llama3.1:8b",
+    "whisper_model": "base",
+    "auto_start": false
+  }
+}

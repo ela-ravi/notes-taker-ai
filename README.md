@@ -1,9 +1,10 @@
-# Zoom Notes Taker
+# Meeting Notes Taker
 
-Automatic meeting notes generator from Zoom meetings using local AI. Captures audio, transcribes with Whisper, and generates summarized meeting notes with action items using Ollama LLM.
+Automatic meeting notes generator using local AI. Captures audio from **any meeting application** (Zoom, Teams, Slack, Google Meet, etc.), transcribes with Whisper, and generates summarized meeting notes with action items using Ollama LLM.
 
 ## Features
 
+- **Works with Any App**: Zoom, Microsoft Teams, Slack Huddles, Google Meet, WebEx, Discord, and more
 - **Local Processing**: All audio processing and AI inference runs locally - no cloud APIs required
 - **Real-time Transcription**: Uses OpenAI Whisper for accurate speech-to-text
 - **Smart Summarization**: Generates meeting summaries, key points, action items, and decisions using Ollama
@@ -128,14 +129,41 @@ This verifies all dependencies are correctly installed.
 
 ## Audio Configuration
 
-### macOS Setup
+### Automated Setup (Recommended)
+
+Use the audio setup scripts to automatically install and configure virtual audio devices:
+
+**macOS:**
+```bash
+./scripts/setup-audio-macos.sh
+```
+This script will:
+- Install BlackHole via Homebrew (if not installed)
+- Create Multi-Output Device and Aggregate Device
+- Update `.env` with the correct audio device
+
+**Windows:**
+```cmd
+scripts\setup-audio-windows.bat
+```
+This script will:
+- Check if VB-Cable is installed
+- Open download page if not installed
+- Update `.env` with the correct audio device
+
+### Manual Setup
+
+<details>
+<summary>Click to expand manual setup instructions</summary>
+
+#### macOS Manual Setup
 
 1. **Install BlackHole**
    ```bash
    brew install blackhole-2ch
    ```
 
-2. **Create Multi-Output Device** (for hearing + capturing Zoom audio)
+2. **Create Multi-Output Device** (for hearing + capturing audio)
    - Open **Audio MIDI Setup** (Spotlight → "Audio MIDI Setup")
    - Click **+** → **Create Multi-Output Device**
    - Check: **MacBook Pro Speakers** (or your speakers)
@@ -146,33 +174,65 @@ This verifies all dependencies are correctly installed.
    - Check: **BlackHole 2ch**
    - Check: **MacBook Pro Microphone**
 
-4. **Configure Zoom**
-   - Settings → Audio
-   - **Speaker**: Multi-Output Device
-   - **Microphone**: MacBook Pro Microphone
-
-5. **Update .env file**
+4. **Update .env file**
    ```env
    ZNT_AUDIO_DEVICE=Aggregate Device
    ```
 
-### Windows Setup
+#### Windows Manual Setup
 
 1. **Install VB-Cable** from https://vb-audio.com/Cable/
 
-2. **Configure Windows Sound**
-   - Settings → Sound → Output
-   - Set **CABLE Input** as default playback device
-
-3. **Configure Zoom**
-   - Settings → Audio
-   - **Speaker**: CABLE Input (VB-Audio Virtual Cable)
-   - **Microphone**: Your physical microphone
-
-4. **Update .env file**
+2. **Update .env file**
    ```env
-   ZNT_AUDIO_DEVICE=CABLE Output
+   ZNT_AUDIO_DEVICE=CABLE Output (VB-Audio Virtual Cable)
    ```
+
+</details>
+
+### Supported Meeting Applications
+
+This tool works with **any application** that plays audio, not just Zoom:
+
+| Application | macOS Speaker Setting | Windows Speaker Setting |
+|-------------|----------------------|------------------------|
+| Zoom | Multi-Output Device | CABLE Input |
+| Microsoft Teams | Multi-Output Device | CABLE Input |
+| Slack Huddles | Multi-Output Device | CABLE Input |
+| Google Meet | Multi-Output Device | CABLE Input |
+| WebEx | Multi-Output Device | CABLE Input |
+| Discord | Multi-Output Device | CABLE Input |
+
+### Quick Audio Switching
+
+**Before recording** - Route meeting audio through virtual device:
+
+| Platform | How to Switch |
+|----------|---------------|
+| macOS | Control Center → Sound → **Multi-Output Device** |
+| Windows | System tray speaker icon → arrow → **CABLE Input** |
+
+**After recording** - Restore normal audio:
+
+| Platform | How to Switch |
+|----------|---------------|
+| macOS | Control Center → Sound → **MacBook Speakers** (or headphones) |
+| Windows | System tray speaker icon → arrow → **Speakers** (or headphones) |
+
+### Per-App Audio Settings (Recommended)
+
+Instead of changing system audio, configure only the meeting app's speaker. This way your regular system audio stays on speakers/headphones:
+
+| Application | Where to Configure |
+|-------------|-------------------|
+| **Zoom** | Settings → Audio → Speaker |
+| **Microsoft Teams** | Settings → Devices → Speaker |
+| **Slack** | Settings → Audio & Video → Speaker |
+| **Google Meet** | Settings (gear icon) → Audio → Speaker |
+| **WebEx** | Settings → Audio → Speaker |
+| **Discord** | Settings → Voice & Video → Output Device |
+
+Set the speaker to **Multi-Output Device** (macOS) or **CABLE Input** (Windows) only in the meeting app.
 
 ---
 
@@ -202,18 +262,64 @@ ZNT_NOTES_BASE=~/Documents/ZoomNotes/notes
 
 ## Usage
 
-### Quick Start Scripts
+### Desktop UI (Recommended)
 
-Double-click these scripts to start recording:
+For the best experience, use the graphical desktop application:
+
+**macOS:**
+```bash
+./meeting-notes-ui.command
+```
+
+**Windows:**
+```cmd
+meeting-notes-ui.bat
+```
+
+The Desktop UI provides:
+- Visual status indicators (Ollama running/stopped)
+- Audio device selection dropdowns
+- Meeting title and context input fields
+- One-click Start/Stop recording button
+- Live transcript display
+- Quick access to generated notes
+
+![Desktop UI Screenshot](docs/ui-screenshot.png)
+
+### One-Click Start (Terminal - macOS)
+
+Use `start-meeting.command` for the easiest experience - it handles everything:
+
+```bash
+./start-meeting.command
+```
+
+This script will:
+1. Check if Ollama is installed (shows install instructions if not)
+2. Start Ollama if not running
+3. Switch audio input to Aggregate Device
+4. Switch audio output to Multi-Output Device
+5. Prompt for meeting title and start recording
+6. Offer to restore audio after recording
+
+**For automatic audio switching**, install SwitchAudioSource:
+```bash
+brew install switchaudio-osx
+```
+
+If audio switching fails (no SwitchAudioSource), you'll be prompted to:
+- **Skip** - Continue and set audio manually (just this step)
+- **Quit** - Stop script, set audio manually, then run script again
+
+### Other Quick Start Scripts
 
 | Script | Platform | Description |
 |--------|----------|-------------|
-| `atve-standup.command` | macOS | ATVE Standup (auto-start) |
-| `tnt-standup.command` | macOS | TNT Sports Standup (auto-start) |
-| `zoom-notes.command` | macOS | General meeting (prompts for title) |
-| `atve-standup.bat` | Windows | ATVE Standup (auto-start) |
-| `tnt-standup.bat` | Windows | TNT Sports Standup (auto-start) |
-| `zoom-notes.bat` | Windows | General meeting (prompts for title) |
+| `meeting-notes-ui.command` | macOS | **Desktop UI** - Graphical interface |
+| `meeting-notes-ui.bat` | Windows | **Desktop UI** - Graphical interface |
+| `start-meeting.command` | macOS | Terminal - Ollama + audio + recording |
+| `zoom-notes.command` | macOS | Terminal - Recording only |
+| `zoom-notes.bat` | Windows | Terminal - Recording only |
 
 ### CLI Commands
 
@@ -437,29 +543,31 @@ Alternatively:
 ## Project Structure
 
 ```
-zoom-notes-taker/
+meeting-notes-taker/
 ├── src/
 │   ├── audio/              # Audio capture and device management
 │   ├── llm/                # Ollama client and summarization
 │   ├── notes/              # Notes generation and templates
 │   ├── transcription/      # Whisper transcription engine
+│   ├── ui/                 # Desktop UI application
 │   ├── utils/              # Utilities and file handling
 │   ├── config.py           # Application settings
-│   ├── config_platform.py  # Platform-specific configs (macOS/Windows/Linux)
+│   ├── config_platform.py  # Platform-specific configs
 │   └── main.py             # CLI entry point
-├── bootstrap.sh            # macOS/Linux setup script
-├── bootstrap.bat           # Windows setup script
-├── zoom-notes.command      # macOS: General meeting launcher
-├── atve-standup.command    # macOS: ATVE standup launcher
-├── tnt-standup.command     # macOS: TNT standup launcher
-├── zoom-notes.bat          # Windows: General meeting launcher
-├── atve-standup.bat        # Windows: ATVE standup launcher
-├── tnt-standup.bat         # Windows: TNT standup launcher
-├── .env.example            # Configuration template
-├── .env                    # Your configuration (create from .env.example)
-├── pyproject.toml          # Python project config
-├── requirements.txt        # Python dependencies
-└── README.md               # This file
+├── scripts/
+│   ├── setup-audio-macos.sh    # macOS audio setup (BlackHole)
+│   └── setup-audio-windows.bat # Windows audio setup (VB-Cable)
+├── meeting-notes-ui.command    # macOS: Desktop UI launcher
+├── meeting-notes-ui.bat        # Windows: Desktop UI launcher
+├── start-meeting.command       # macOS: Full terminal setup + recording
+├── zoom-notes.command          # macOS: Terminal recording
+├── zoom-notes.bat              # Windows: Terminal recording
+├── bootstrap.sh                # macOS/Linux setup script
+├── bootstrap.bat               # Windows setup script
+├── .env.example                # Configuration template
+├── .env                        # Your configuration (auto-created)
+├── pyproject.toml              # Python project config
+└── README.md                   # This file
 ```
 
 ---

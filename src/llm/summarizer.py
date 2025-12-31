@@ -63,17 +63,20 @@ class MeetingSummarizer:
         """
         self.client = client or OllamaClient()
 
-    def summarize(self, transcript: str) -> MeetingSummary:
+    def summarize(self, transcript: str, custom_context: Optional[str] = None) -> MeetingSummary:
         """
         Generate a complete meeting summary.
 
         Args:
             transcript: The meeting transcript text
+            custom_context: Optional user-provided context/instructions for the summary
 
         Returns:
             MeetingSummary with all extracted information
         """
         logger.info("Starting meeting summarization...")
+        if custom_context:
+            logger.info(f"Using custom context: {custom_context[:100]}...")
 
         if not transcript or len(transcript.strip()) < 50:
             logger.warning("Transcript too short for meaningful analysis")
@@ -84,9 +87,14 @@ class MeetingSummarizer:
 
         summary = MeetingSummary()
 
+        # Build system prompt with custom context
+        system_prompt = SYSTEM_PROMPT
+        if custom_context:
+            system_prompt += f"\n\nAdditional context from user:\n{custom_context}"
+
         # Generate summary
         try:
-            summary.summary = self._generate_summary(transcript)
+            summary.summary = self._generate_summary(transcript, system_prompt)
             logger.info("Generated summary")
         except Exception as e:
             logger.error(f"Error generating summary: {e}")
@@ -123,10 +131,10 @@ class MeetingSummarizer:
 
         return summary
 
-    def _generate_summary(self, transcript: str) -> str:
+    def _generate_summary(self, transcript: str, system_prompt: Optional[str] = None) -> str:
         """Generate a concise summary of the meeting."""
         prompt = SUMMARY_PROMPT.format(transcript=self._truncate(transcript, 8000))
-        response = self.client.generate(prompt, system=SYSTEM_PROMPT)
+        response = self.client.generate(prompt, system=system_prompt or SYSTEM_PROMPT)
         return response.strip()
 
     def _extract_key_points(self, transcript: str) -> list[str]:
