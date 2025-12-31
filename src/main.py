@@ -106,7 +106,8 @@ def select_ollama_model() -> str:
 @click.option("--title", "-t", prompt="Meeting title", help="Title for the meeting")
 @click.option("--model", "-m", default=None, help="Ollama model to use (default: from config)")
 @click.option("--default-model", "-d", is_flag=True, help="Use default model without prompting")
-def start(title: str, model: Optional[str], default_model: bool):
+@click.option("--context", "-c", default=None, help="Additional context for notes generation (e.g., 'Focus on action items for frontend team')")
+def start(title: str, model: Optional[str], default_model: bool, context: Optional[str]):
     """Start recording a Zoom meeting."""
     global _recorder, _stop_event
 
@@ -122,12 +123,15 @@ def start(title: str, model: Optional[str], default_model: bool):
     settings = get_settings()
     settings.ollama_model = selected_model
 
-    console.print(Panel(
+    panel_text = (
         f"[bold green]Recording:[/bold green] {title}\n"
-        f"[bold blue]Model:[/bold blue] {selected_model}\n\n"
-        "Press [bold]Ctrl+C[/bold] to stop recording and generate notes.",
-        title="Zoom Notes Taker",
-    ))
+        f"[bold blue]Model:[/bold blue] {selected_model}"
+    )
+    if context:
+        panel_text += f"\n[bold yellow]Context:[/bold yellow] {context[:50]}{'...' if len(context) > 50 else ''}"
+    panel_text += "\n\nPress [bold]Ctrl+C[/bold] to stop recording and generate notes."
+
+    console.print(Panel(panel_text, title="Meeting Notes Taker"))
 
     # Track segments for live display
     segments: list[TranscriptSegment] = []
@@ -157,7 +161,7 @@ def start(title: str, model: Optional[str], default_model: bool):
             pass
 
         try:
-            session = await _recorder.start(title)
+            session = await _recorder.start(title, custom_context=context)
             console.print(f"[green]Session started:[/green] {session.id}")
             console.print("[dim]Listening for audio...[/dim]\n")
 

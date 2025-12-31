@@ -14,6 +14,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_prefix="ZNT_",
         case_sensitive=False,
+        extra="ignore",  # Ignore extra env vars like ZNT_PROJECT_DIR used by scripts
     )
 
     # Audio Configuration

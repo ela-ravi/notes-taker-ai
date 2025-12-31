@@ -59,13 +59,26 @@ if "%meeting_title%"=="" (
     for /f "tokens=1-5 delims=/:. " %%a in ("%date% %time%") do set meeting_title=Meeting %%a-%%b-%%c %%d:%%e
 )
 
+REM Prompt for optional context
+echo.
+echo Additional context for notes (optional, press Enter to skip):
+echo Example: 'Focus on action items', 'Extract decisions only'
+set /p meeting_context="> "
+
 echo.
 echo Starting recording: %meeting_title%
+if not "%meeting_context%"=="" (
+    echo Context: %meeting_context%
+)
 echo Press Ctrl+C to stop and generate notes.
 echo.
 
 REM Run the application
-python -m src.main start --title "%meeting_title%"
+if not "%meeting_context%"=="" (
+    python -m src.main start --title "%meeting_title%" --context "%meeting_context%"
+) else (
+    python -m src.main start --title "%meeting_title%"
+)
 
 REM Keep window open after completion
 echo.

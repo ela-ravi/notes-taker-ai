@@ -58,13 +58,26 @@ if [ -z "$meeting_title" ]; then
     meeting_title="Meeting $(date '+%Y-%m-%d %H:%M')"
 fi
 
+# Prompt for optional context
+echo ""
+echo -e "${GREEN}Additional context for notes (optional, press Enter to skip):${NC}"
+echo -e "${YELLOW}Example: 'Focus on action items', 'Extract decisions only'${NC}"
+read -p "> " meeting_context
+
 echo ""
 echo -e "${BLUE}Starting recording: ${meeting_title}${NC}"
+if [ -n "$meeting_context" ]; then
+    echo -e "${YELLOW}Context: ${meeting_context}${NC}"
+fi
 echo "Press Ctrl+C to stop and generate notes."
 echo ""
 
 # Run the application
-python -m src.main start --title "$meeting_title"
+if [ -n "$meeting_context" ]; then
+    python -m src.main start --title "$meeting_title" --context "$meeting_context"
+else
+    python -m src.main start --title "$meeting_title"
+fi
 
 # Keep terminal open after completion
 echo ""

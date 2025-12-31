@@ -50,9 +50,14 @@ dev = [
 apple-silicon = [
     "mlx-whisper>=0.1.0",
 ]
+gui = [
+    "customtkinter>=5.2.0",
+    "Pillow>=10.0.0",
+]
 
 [project.scripts]
 zoom-notes = "src.main:cli"
+meeting-notes-ui = "src.ui.app:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

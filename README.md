@@ -262,18 +262,64 @@ ZNT_NOTES_BASE=~/Documents/ZoomNotes/notes
 
 ## Usage
 
-### Quick Start Scripts
+### Desktop UI (Recommended)
 
-Double-click these scripts to start recording:
+For the best experience, use the graphical desktop application:
+
+**macOS:**
+```bash
+./meeting-notes-ui.command
+```
+
+**Windows:**
+```cmd
+meeting-notes-ui.bat
+```
+
+The Desktop UI provides:
+- Visual status indicators (Ollama running/stopped)
+- Audio device selection dropdowns
+- Meeting title and context input fields
+- One-click Start/Stop recording button
+- Live transcript display
+- Quick access to generated notes
+
+![Desktop UI Screenshot](docs/ui-screenshot.png)
+
+### One-Click Start (Terminal - macOS)
+
+Use `start-meeting.command` for the easiest experience - it handles everything:
+
+```bash
+./start-meeting.command
+```
+
+This script will:
+1. Check if Ollama is installed (shows install instructions if not)
+2. Start Ollama if not running
+3. Switch audio input to Aggregate Device
+4. Switch audio output to Multi-Output Device
+5. Prompt for meeting title and start recording
+6. Offer to restore audio after recording
+
+**For automatic audio switching**, install SwitchAudioSource:
+```bash
+brew install switchaudio-osx
+```
+
+If audio switching fails (no SwitchAudioSource), you'll be prompted to:
+- **Skip** - Continue and set audio manually (just this step)
+- **Quit** - Stop script, set audio manually, then run script again
+
+### Other Quick Start Scripts
 
 | Script | Platform | Description |
 |--------|----------|-------------|
-| `atve-standup.command` | macOS | ATVE Standup (auto-start) |
-| `tnt-standup.command` | macOS | TNT Sports Standup (auto-start) |
-| `zoom-notes.command` | macOS | General meeting (prompts for title) |
-| `atve-standup.bat` | Windows | ATVE Standup (auto-start) |
-| `tnt-standup.bat` | Windows | TNT Sports Standup (auto-start) |
-| `zoom-notes.bat` | Windows | General meeting (prompts for title) |
+| `meeting-notes-ui.command` | macOS | **Desktop UI** - Graphical interface |
+| `meeting-notes-ui.bat` | Windows | **Desktop UI** - Graphical interface |
+| `start-meeting.command` | macOS | Terminal - Ollama + audio + recording |
+| `zoom-notes.command` | macOS | Terminal - Recording only |
+| `zoom-notes.bat` | Windows | Terminal - Recording only |
 
 ### CLI Commands
 
@@ -503,22 +549,25 @@ meeting-notes-taker/
 │   ├── llm/                # Ollama client and summarization
 │   ├── notes/              # Notes generation and templates
 │   ├── transcription/      # Whisper transcription engine
+│   ├── ui/                 # Desktop UI application
 │   ├── utils/              # Utilities and file handling
 │   ├── config.py           # Application settings
-│   ├── config_platform.py  # Platform-specific configs (macOS/Windows/Linux)
+│   ├── config_platform.py  # Platform-specific configs
 │   └── main.py             # CLI entry point
 ├── scripts/
 │   ├── setup-audio-macos.sh    # macOS audio setup (BlackHole)
 │   └── setup-audio-windows.bat # Windows audio setup (VB-Cable)
-├── bootstrap.sh            # macOS/Linux setup script
-├── bootstrap.bat           # Windows setup script
-├── zoom-notes.command      # macOS: General meeting launcher
-├── zoom-notes.bat          # Windows: General meeting launcher
-├── .env.example            # Configuration template
-├── .env                    # Your configuration (auto-created by bootstrap)
-├── pyproject.toml          # Python project config
-├── requirements.txt        # Python dependencies
-└── README.md               # This file
+├── meeting-notes-ui.command    # macOS: Desktop UI launcher
+├── meeting-notes-ui.bat        # Windows: Desktop UI launcher
+├── start-meeting.command       # macOS: Full terminal setup + recording
+├── zoom-notes.command          # macOS: Terminal recording
+├── zoom-notes.bat              # Windows: Terminal recording
+├── bootstrap.sh                # macOS/Linux setup script
+├── bootstrap.bat               # Windows setup script
+├── .env.example                # Configuration template
+├── .env                        # Your configuration (auto-created)
+├── pyproject.toml              # Python project config
+└── README.md                   # This file
 ```
 
 ---
