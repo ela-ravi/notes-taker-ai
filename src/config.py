@@ -103,6 +103,12 @@ class Settings(BaseSettings):
         description="Dodo Payments product ID for subscription",
     )
 
+    # Provider Restriction (for SaaS/distributed builds)
+    cloud_only: bool = Field(
+        default=False,
+        description="When true, only Cloud (Subscription) provider is shown to users",
+    )
+
     # Output Configuration
     output_dir: Path = Field(
         default=Path.home() / "Documents" / "ZoomNotes" / "notes",

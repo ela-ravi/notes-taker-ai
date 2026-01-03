@@ -472,45 +472,61 @@ class MeetingNotesApp(ctk.CTk):
         provider_label = ctk.CTkLabel(provider_frame, text="LLM Provider:", width=120, anchor="w")
         provider_label.pack(side="left")
 
-        # Build provider list - always show all options
-        # Cloud (Subscription) is first if SaaS mode is enabled
-        if self._saas_mode:
+        # Build provider list based on cloud_only setting and SaaS mode
+        settings = get_settings()
+        if settings.cloud_only and self._saas_mode:
+            # Cloud-only mode: only show subscription option (for distributed/SaaS builds)
+            provider_values = ["Cloud (Subscription)"]
+        elif self._saas_mode:
+            # SaaS mode with all providers available
             provider_values = ["Cloud (Subscription)", "Groq (Cloud - Fast)", "Ollama (Local)", "HuggingFace (Cloud)"]
         else:
+            # Standalone mode (no Supabase configured)
             provider_values = ["Groq (Cloud - Fast)", "Ollama (Local)", "HuggingFace (Cloud)"]
 
-        self.provider_dropdown = ctk.CTkComboBox(
-            provider_frame,
-            width=200,
-            values=provider_values,
-            state="readonly",
-            command=self._on_provider_change,
-        )
+        # If only one provider, show as disabled text instead of dropdown
+        self._single_provider_mode = len(provider_values) == 1
+        if self._single_provider_mode:
+            # Show non-interactive entry for single provider
+            self.provider_dropdown = ctk.CTkEntry(
+                provider_frame,
+                width=200,
+                state="disabled",
+            )
+            self.provider_dropdown.configure(textvariable=ctk.StringVar(value=provider_values[0]))
+        else:
+            # Show dropdown for multiple providers
+            self.provider_dropdown = ctk.CTkComboBox(
+                provider_frame,
+                width=200,
+                values=provider_values,
+                state="readonly",
+                command=self._on_provider_change,
+            )
 
-        # Set default based on config (ZNT_LLM_PROVIDER)
-        settings = get_settings()
-        provider_map = {
-            "cloud": "Cloud (Subscription)",
-            "groq": "Groq (Cloud - Fast)",
-            "ollama": "Ollama (Local)",
-            "huggingface": "HuggingFace (Cloud)",
-        }
-        configured_provider = settings.llm_provider.lower()
-        if configured_provider in provider_map:
-            # Use configured provider if available in dropdown
-            provider_name = provider_map[configured_provider]
-            if provider_name in provider_values:
-                self.provider_dropdown.set(provider_name)
+            # Set default based on config (ZNT_LLM_PROVIDER)
+            provider_map = {
+                "cloud": "Cloud (Subscription)",
+                "groq": "Groq (Cloud - Fast)",
+                "ollama": "Ollama (Local)",
+                "huggingface": "HuggingFace (Cloud)",
+            }
+            configured_provider = settings.llm_provider.lower()
+            if configured_provider in provider_map:
+                # Use configured provider if available in dropdown
+                provider_name = provider_map[configured_provider]
+                if provider_name in provider_values:
+                    self.provider_dropdown.set(provider_name)
+                elif settings.groq_api_key:
+                    self.provider_dropdown.set("Groq (Cloud - Fast)")
+                else:
+                    self.provider_dropdown.set("Ollama (Local)")
+            elif self._saas_mode:
+                self.provider_dropdown.set("Cloud (Subscription)")
             elif settings.groq_api_key:
                 self.provider_dropdown.set("Groq (Cloud - Fast)")
             else:
                 self.provider_dropdown.set("Ollama (Local)")
-        elif self._saas_mode:
-            self.provider_dropdown.set("Cloud (Subscription)")
-        elif settings.groq_api_key:
-            self.provider_dropdown.set("Groq (Cloud - Fast)")
-        else:
-            self.provider_dropdown.set("Ollama (Local)")
         self.provider_dropdown.pack(side="left", padx=10)
 
         self.provider_status = ctk.CTkLabel(
@@ -1120,7 +1136,9 @@ class MeetingNotesApp(ctk.CTk):
         self.preset_name.configure(state="normal")
         self.meeting_title.configure(state="normal")
         self.meeting_context.configure(state="normal")
-        self.provider_dropdown.configure(state="readonly")
+        # Keep provider disabled if single provider mode (Entry widget)
+        if not self._single_provider_mode:
+            self.provider_dropdown.configure(state="readonly")
         self.model_dropdown.configure(state="readonly")
         self.whisper_dropdown.configure(state="readonly")
         self.input_device.configure(state="readonly")
