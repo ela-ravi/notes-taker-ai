@@ -7,7 +7,6 @@ from typing import Callable, Optional
 from uuid import uuid4
 
 from ..config import get_settings
-from ..llm.ollama_client import OllamaClient
 from ..llm.summarizer import MeetingSummarizer
 from ..transcription.livekit_engine import LiveKitEngine, TranscriptionResult
 from ..utils.file_utils import get_output_path, get_recording_path, get_smart_output_dir

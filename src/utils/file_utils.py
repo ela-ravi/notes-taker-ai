@@ -14,12 +14,20 @@ MEETING_FOLDERS = {
 
 
 def get_notes_base_path() -> Path:
-    """Get the base path for meeting notes from environment variable."""
-    base = os.environ.get("ZNT_NOTES_BASE")
+    """Get the base path for meeting notes from environment variable.
+
+    Checks both ZNT_NOTES_BASE and ZNT_OUTPUT_DIR for backwards compatibility.
+    Always returns an absolute path in a writable location.
+    """
+    # Check both env vars for compatibility
+    base = os.environ.get("ZNT_NOTES_BASE") or os.environ.get("ZNT_OUTPUT_DIR")
     if base:
-        return Path(base)
-    # Fallback to default
-    return Path.home() / "Documents/ZoomNotes/notes"
+        path = Path(base).expanduser()  # Expand ~ to home directory
+        # Ensure absolute path - relative paths cause issues in bundled apps
+        if path.is_absolute():
+            return path
+    # Fallback to default in user's home directory (always writable)
+    return Path.home() / "Documents" / "ZoomNotes" / "notes"
 
 
 def get_meeting_folder(title: str) -> str:

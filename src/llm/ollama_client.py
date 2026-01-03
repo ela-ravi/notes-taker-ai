@@ -8,6 +8,7 @@ import ollama as ollama_lib
 
 from ..config import get_settings
 from ..utils.logging_config import get_logger
+from .base import LLMClient, LLMError
 
 logger = get_logger("llm.ollama")
 
@@ -23,13 +24,13 @@ class OllamaConfig:
     timeout: float = 120.0
 
 
-class OllamaError(Exception):
+class OllamaError(LLMError):
     """Ollama-related errors."""
 
     pass
 
 
-class OllamaClient:
+class OllamaClient(LLMClient):
     """
     Client for interacting with local Ollama LLM.
 
@@ -268,3 +269,8 @@ class OllamaClient:
         except Exception as e:
             logger.error(f"Error listing models: {e}")
             return []
+
+    @property
+    def provider_name(self) -> str:
+        """Get the provider name."""
+        return "Ollama"

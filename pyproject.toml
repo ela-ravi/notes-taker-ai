@@ -12,7 +12,7 @@ license = {text = "MIT"}
 authors = [
     {name = "Zoom Notes Taker"}
 ]
-keywords = ["zoom", "meeting", "notes", "transcription", "whisper", "ollama", "ai"]
+keywords = ["zoom", "meeting", "notes", "transcription", "whisper", "ollama", "groq", "huggingface", "ai"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: End Users/Desktop",
@@ -31,12 +31,16 @@ dependencies = [
     "scipy>=1.11.0",
     "whisperlivekit>=0.1.0",
     "ollama>=0.1.0",
+    "huggingface_hub>=0.20.0",
+    "groq>=0.4.0",
     "click>=8.1.0",
     "rich>=13.0.0",
     "websockets>=12.0",
     "python-dotenv>=1.0.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
+    "supabase>=2.0.0",
+    "httpx>=0.25.0",
 ]
 
 [project.optional-dependencies]

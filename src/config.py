@@ -49,6 +49,12 @@ class Settings(BaseSettings):
         description="Enable speaker diarization",
     )
 
+    # LLM Provider Configuration
+    llm_provider: str = Field(
+        default="groq",
+        description="LLM provider: 'groq', 'ollama', or 'huggingface'",
+    )
+
     # Ollama Configuration
     ollama_model: str = Field(
         default="llama3.2",
@@ -63,13 +69,48 @@ class Settings(BaseSettings):
         description="Temperature for LLM generation (lower = more deterministic)",
     )
 
+    # HuggingFace Configuration
+    hf_model: str = Field(
+        default="meta-llama/Llama-3.1-8B-Instruct",
+        description="HuggingFace model for summarization (when using huggingface provider)",
+    )
+
+    # Groq Configuration (Fast & Low-cost Cloud)
+    groq_api_key: Optional[str] = Field(
+        default=None,
+        alias="GROQ_API_KEY",
+        description="Groq API key for cloud LLM (get free key at console.groq.com)",
+    )
+    groq_model: str = Field(
+        default="llama-3.1-8b-instant",
+        description="Groq model for summarization (when using groq provider)",
+    )
+
+    # Supabase Configuration (for Cloud/SaaS mode)
+    supabase_url: Optional[str] = Field(
+        default=None,
+        alias="SUPABASE_URL",
+        description="Supabase project URL",
+    )
+    supabase_anon_key: Optional[str] = Field(
+        default=None,
+        alias="SUPABASE_ANON_KEY",
+        description="Supabase anonymous key",
+    )
+    dodo_product_id: Optional[str] = Field(
+        default=None,
+        alias="DODO_PRODUCT_ID",
+        description="Dodo Payments product ID for subscription",
+    )
+
     # Output Configuration
     output_dir: Path = Field(
-        default=Path("./output"),
+        default=Path.home() / "Documents" / "ZoomNotes" / "notes",
+        alias="ZNT_NOTES_BASE",
         description="Directory for generated meeting notes",
     )
     recordings_dir: Path = Field(
-        default=Path("./recordings"),
+        default=Path.home() / "Documents" / "ZoomNotes" / "recordings",
         description="Directory for audio recordings",
     )
 
@@ -82,8 +123,20 @@ class Settings(BaseSettings):
 
     def ensure_directories(self) -> None:
         """Create output directories if they don't exist."""
+        self._resolve_paths()
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.recordings_dir.mkdir(parents=True, exist_ok=True)
+
+    def _resolve_paths(self) -> None:
+        """Convert relative paths to absolute paths in user's home directory."""
+        # Expand ~ in paths
+        self.output_dir = self.output_dir.expanduser()
+        self.recordings_dir = self.recordings_dir.expanduser()
+        # Fall back to defaults if still relative (e.g., ./output)
+        if not self.output_dir.is_absolute():
+            self.output_dir = Path.home() / "Documents" / "ZoomNotes" / "notes"
+        if not self.recordings_dir.is_absolute():
+            self.recordings_dir = Path.home() / "Documents" / "ZoomNotes" / "recordings"
 
 
 # Global settings instance

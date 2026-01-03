@@ -19,6 +19,7 @@ from rich.table import Table
 from .audio.device import AudioDeviceManager
 from .config import get_settings
 from .config_platform import get_platform_config
+from .llm.factory import create_llm_client, get_available_providers
 from .llm.ollama_client import OllamaClient
 from .notes.generator import MeetingRecorder, NotesGenerator
 from .transcription.livekit_engine import TranscriptSegment
@@ -42,6 +43,49 @@ def cli(verbose: bool):
     """
     level = 10 if verbose else 20  # DEBUG or INFO
     setup_logging(level=level)
+
+
+def select_llm_provider() -> str:
+    """Display available LLM providers and let user select one."""
+    settings = get_settings()
+    providers = get_available_providers()
+
+    console.print("\n[bold cyan]Available LLM Providers:[/bold cyan]")
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("#", style="dim", width=4)
+    table.add_column("Provider", style="cyan")
+    table.add_column("Model", style="white")
+    table.add_column("Status", style="green")
+
+    available_providers = []
+    for idx, p in enumerate(providers, 1):
+        status = "[green]Ready[/green]" if p["available"] else f"[red]{p['reason']}[/red]"
+        is_default = " (default)" if p["id"] == settings.llm_provider else ""
+        table.add_row(str(idx), p["name"] + is_default, p["model"], status)
+        available_providers.append(p)
+
+    console.print(table)
+
+    # Prompt for selection
+    console.print(f"\n[dim]Press Enter to use default ({settings.llm_provider})[/dim]")
+    choice = click.prompt(
+        "Select provider number",
+        default="",
+        show_default=False,
+    )
+
+    if not choice:
+        return settings.llm_provider
+
+    if choice.isdigit():
+        idx = int(choice) - 1
+        if 0 <= idx < len(available_providers):
+            selected = available_providers[idx]
+            if not selected["available"]:
+                console.print(f"[yellow]Warning: {selected['name']} is not available. {selected['reason']}[/yellow]")
+            return selected["id"]
+
+    return settings.llm_provider
 
 
 def select_ollama_model() -> str:
@@ -104,27 +148,63 @@ def select_ollama_model() -> str:
 
 @cli.command()
 @click.option("--title", "-t", prompt="Meeting title", help="Title for the meeting")
-@click.option("--model", "-m", default=None, help="Ollama model to use (default: from config)")
-@click.option("--default-model", "-d", is_flag=True, help="Use default model without prompting")
+@click.option("--provider", "-p", default=None, type=click.Choice(["ollama", "huggingface", "groq"]), help="LLM provider (default: from config)")
+@click.option("--model", "-m", default=None, help="Model to use (default: from config)")
+@click.option("--default-model", "-d", is_flag=True, help="Use default provider and model without prompting")
 @click.option("--context", "-c", default=None, help="Additional context for notes generation (e.g., 'Focus on action items for frontend team')")
-def start(title: str, model: Optional[str], default_model: bool, context: Optional[str]):
+def start(title: str, provider: Optional[str], model: Optional[str], default_model: bool, context: Optional[str]):
     """Start recording a Zoom meeting."""
     global _recorder, _stop_event
 
-    # Select model
+    settings = get_settings()
+
+    # Select provider
+    if provider is not None:
+        selected_provider = provider
+    elif default_model:
+        selected_provider = settings.llm_provider
+    else:
+        selected_provider = select_llm_provider()
+
+    # Update settings with selected provider
+    settings.llm_provider = selected_provider
+
+    # Select model based on provider
     if model is not None:
         selected_model = model
     elif default_model:
-        selected_model = get_settings().ollama_model
-    else:
+        if selected_provider == "ollama":
+            selected_model = settings.ollama_model
+        elif selected_provider == "groq":
+            selected_model = settings.groq_model
+        else:
+            selected_model = settings.hf_model
+    elif selected_provider == "ollama":
         selected_model = select_ollama_model()
+    elif selected_provider == "groq":
+        # For Groq, use the default model
+        selected_model = settings.groq_model
+    else:
+        # For HuggingFace, use the default model
+        selected_model = settings.hf_model
 
     # Update settings with selected model
-    settings = get_settings()
-    settings.ollama_model = selected_model
+    if selected_provider == "ollama":
+        settings.ollama_model = selected_model
+    elif selected_provider == "groq":
+        settings.groq_model = selected_model
+    else:
+        settings.hf_model = selected_model
 
+    provider_names = {
+        "ollama": "Ollama (Local)",
+        "groq": "Groq (Cloud - Fast)",
+        "huggingface": "HuggingFace (Cloud)",
+    }
+    provider_display = provider_names.get(selected_provider, selected_provider)
     panel_text = (
         f"[bold green]Recording:[/bold green] {title}\n"
+        f"[bold blue]Provider:[/bold blue] {provider_display}\n"
         f"[bold blue]Model:[/bold blue] {selected_model}"
     )
     if context:
@@ -419,14 +499,35 @@ def config():
     table.add_row("Audio Device", settings.audio_device)
     table.add_row("Sample Rate", f"{settings.sample_rate} Hz")
     table.add_row("Whisper Model", settings.whisper_model)
-    table.add_row("Language", settings.whisper_language)
+    table.add_row("Language", settings.whisper_language or "auto-detect")
     table.add_row("Diarization", "Enabled" if settings.enable_diarization else "Disabled")
+    table.add_row("", "")  # Separator
+    provider_names = {
+        "ollama": "Ollama (Local)",
+        "groq": "Groq (Cloud - Fast)",
+        "huggingface": "HuggingFace (Cloud)",
+    }
+    provider_display = provider_names.get(settings.llm_provider, settings.llm_provider)
+    table.add_row("LLM Provider", provider_display)
+    table.add_row("Groq Model", settings.groq_model)
+    table.add_row("Groq API Key", "Configured" if settings.groq_api_key else "[dim]Not set[/dim]")
     table.add_row("Ollama Model", settings.ollama_model)
     table.add_row("Ollama Host", settings.ollama_host)
+    table.add_row("HuggingFace Model", settings.hf_model)
+    table.add_row("HF Token", "Configured" if settings.hf_token else "[dim]Not set[/dim]")
+    table.add_row("", "")  # Separator
     table.add_row("Output Directory", str(settings.output_dir))
     table.add_row("Recordings Directory", str(settings.recordings_dir))
 
     console.print(table)
+
+    # Show provider status
+    console.print("\n[bold]LLM Provider Status:[/bold]")
+    providers = get_available_providers()
+    for p in providers:
+        status = "[green]Ready[/green]" if p["available"] else f"[red]Not available[/red] - {p['reason']}"
+        console.print(f"  {p['name']}: {status}")
+
     console.print("\n[dim]Edit .env file to change settings[/dim]")
 
 

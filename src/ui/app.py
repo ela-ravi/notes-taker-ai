@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import platform
 import subprocess
 import threading
@@ -14,12 +15,43 @@ import customtkinter as ctk
 import sounddevice as sd
 
 from ..config import get_settings
+from ..llm.factory import get_available_providers, set_cloud_access_token
 from ..notes.generator import MeetingRecorder
 from ..notes.models import TranscriptSegment
 
+# Auth imports (optional - only if Supabase is configured)
+_AUTH_AVAILABLE = False
+_AUTH_IMPORT_ERROR = None
+try:
+    from ..auth import AuthManager, AuthState
+    from .login_screen import LoginScreen, SubscriptionScreen
+    _AUTH_AVAILABLE = True
+except ImportError as e:
+    _AUTH_IMPORT_ERROR = str(e)
+except Exception as e:
+    _AUTH_IMPORT_ERROR = f"Unexpected error: {e}"
 
-# Presets file location
-PRESETS_FILE = Path(__file__).parent.parent.parent / "meeting_presets.json"
+
+# Presets file location - use user's home directory for bundled app compatibility
+def _get_presets_file_path() -> Path:
+    """Get the presets file path in a writable location."""
+    # First try user's home directory (always writable)
+    user_presets = Path.home() / ".meeting_notes_presets.json"
+    if user_presets.exists():
+        return user_presets
+    # Check if running from bundled app (frozen)
+    import sys
+    if getattr(sys, 'frozen', False):
+        # Running as bundled app - use home directory
+        return user_presets
+    # Development mode - try project directory first
+    project_presets = Path(__file__).parent.parent.parent / "meeting_presets.json"
+    if project_presets.exists():
+        return project_presets
+    # Default to user's home directory for new installations
+    return user_presets
+
+PRESETS_FILE = _get_presets_file_path()
 
 # Default presets
 DEFAULT_PRESETS = {
@@ -70,12 +102,111 @@ class MeetingNotesApp(ctk.CTk):
         self._presets = self._load_presets()
         self._current_preset: Optional[str] = None
 
-        # Build UI
+        # Auth state
+        self._auth_manager: Optional[AuthManager] = None
+        self._login_screen: Optional[LoginScreen] = None
+        self._subscription_screen: Optional[SubscriptionScreen] = None
+        self._saas_mode = self._is_saas_mode()
+
+        # Check if we should use SaaS mode (Supabase configured)
+        if self._saas_mode and _AUTH_AVAILABLE:
+            self._setup_auth()
+        else:
+            # Standard mode - build UI directly
+            self._create_widgets()
+            self._check_provider_status()
+            self._load_audio_devices()
+            self._load_models_for_provider()
+            self._populate_presets_list()
+
+    def _is_saas_mode(self) -> bool:
+        """Check if SaaS mode is enabled (Supabase configured)."""
+        return bool(os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_ANON_KEY"))
+
+    def _setup_auth(self):
+        """Set up authentication for SaaS mode."""
+        self._auth_manager = AuthManager(on_state_change=self._on_auth_state_change)
+
+        # Try to restore session
+        if self._auth_manager.initialize_sync():
+            # Session restored, show main app
+            self._create_widgets()
+            self._check_provider_status()
+            self._load_audio_devices()
+            self._load_models_for_provider()
+            self._populate_presets_list()
+        else:
+            # No session, show login screen
+            self._show_login_screen()
+
+    def _on_auth_state_change(self, state: AuthState):
+        """Handle authentication state changes."""
+        if state == AuthState.LOGGED_OUT:
+            # Show login screen
+            self._show_login_screen()
+        elif state == AuthState.SESSION_EXPIRED:
+            self._show_error("Your session has expired. Please sign in again.")
+            self._show_login_screen()
+
+    def _show_login_screen(self):
+        """Show the login screen."""
+        # Hide main content if exists
+        if hasattr(self, "main_frame"):
+            self.main_frame.pack_forget()
+
+        # Create and show login screen
+        self._login_screen = LoginScreen(
+            self,
+            self._auth_manager,
+            on_login_success=self._on_login_success,
+        )
+        self._login_screen.pack(fill="both", expand=True)
+
+    def _on_login_success(self):
+        """Handle successful login."""
+        # Hide login screen
+        if self._login_screen:
+            self._login_screen.pack_forget()
+            self._login_screen.destroy()
+            self._login_screen = None
+
+        # Build and show main app
         self._create_widgets()
-        self._check_ollama_status()
+        self._check_provider_status()
         self._load_audio_devices()
-        self._load_ollama_models()
+        self._load_models_for_provider()
         self._populate_presets_list()
+
+    def _show_subscription_screen(self):
+        """Show the subscription management screen."""
+        if hasattr(self, "main_frame"):
+            self.main_frame.pack_forget()
+
+        settings = get_settings()
+        self._subscription_screen = SubscriptionScreen(
+            self,
+            self._auth_manager,
+            on_back=self._hide_subscription_screen,
+            product_id=settings.dodo_product_id or "",
+            supabase_url=os.getenv("SUPABASE_URL", ""),
+        )
+        self._subscription_screen.pack(fill="both", expand=True)
+
+    def _hide_subscription_screen(self):
+        """Hide subscription screen and show main app."""
+        if self._subscription_screen:
+            self._subscription_screen.pack_forget()
+            self._subscription_screen.destroy()
+            self._subscription_screen = None
+
+        if hasattr(self, "main_frame"):
+            self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+    def _sign_out(self):
+        """Sign out the current user."""
+        if self._auth_manager:
+            self._auth_manager.sign_out()
+            # Main frame will be hidden by auth state change callback
 
     def _load_presets(self) -> dict:
         """Load meeting presets from file."""
@@ -197,24 +328,93 @@ class MeetingNotesApp(ctk.CTk):
         status_frame = ctk.CTkFrame(header, fg_color="transparent")
         status_frame.pack(side="right", padx=10, pady=10)
 
-        # Ollama status
-        ollama_label = ctk.CTkLabel(status_frame, text="Ollama:")
-        ollama_label.pack(side="left", padx=(0, 5))
+        # User info and sign out (SaaS mode only)
+        if self._saas_mode and self._auth_manager and self._auth_manager.user_profile:
+            profile = self._auth_manager.user_profile
 
-        self.ollama_status = ctk.CTkLabel(
-            status_frame, text="●", text_color="yellow", font=ctk.CTkFont(size=16)
-        )
-        self.ollama_status.pack(side="left", padx=(0, 10))
+            # User email
+            user_label = ctk.CTkLabel(
+                status_frame,
+                text=profile.email,
+                font=ctk.CTkFont(size=12),
+                text_color="gray",
+            )
+            user_label.pack(side="left", padx=(0, 5))
 
-        self.ollama_btn = ctk.CTkButton(
-            status_frame,
-            text="Start",
-            width=60,
-            height=28,
-            command=self._start_ollama,
-            state="disabled",
-        )
-        self.ollama_btn.pack(side="left", padx=(0, 10))
+            # Subscription badge
+            tier_color = "#22c55e" if profile.subscription_tier == "pro" else "gray"
+            tier_text = "PRO" if profile.subscription_tier == "pro" else "FREE"
+            tier_badge = ctk.CTkLabel(
+                status_frame,
+                text=tier_text,
+                font=ctk.CTkFont(size=10, weight="bold"),
+                text_color=tier_color,
+            )
+            tier_badge.pack(side="left", padx=(0, 5))
+
+            # Usage info
+            if profile.subscription_tier == "free":
+                usage_text = f"({profile.meetings_this_month}/{profile.meetings_limit})"
+                usage_label = ctk.CTkLabel(
+                    status_frame,
+                    text=usage_text,
+                    font=ctk.CTkFont(size=10),
+                    text_color="gray",
+                )
+                usage_label.pack(side="left", padx=(0, 10))
+
+            # Upgrade button (free tier only)
+            if profile.subscription_tier == "free":
+                upgrade_btn = ctk.CTkButton(
+                    status_frame,
+                    text="Upgrade",
+                    width=70,
+                    height=25,
+                    font=ctk.CTkFont(size=11),
+                    fg_color="#22c55e",
+                    hover_color="#16a34a",
+                    command=self._show_subscription_screen,
+                )
+                upgrade_btn.pack(side="left", padx=(0, 10))
+
+            # Sign out button
+            signout_btn = ctk.CTkButton(
+                status_frame,
+                text="Sign Out",
+                width=70,
+                height=25,
+                font=ctk.CTkFont(size=11),
+                fg_color="transparent",
+                hover_color=("gray70", "gray30"),
+                border_width=1,
+                command=self._sign_out,
+            )
+            signout_btn.pack(side="left", padx=(0, 10))
+
+        # Provider status (for non-cloud providers)
+        if not self._saas_mode:
+            # Ollama status
+            ollama_label = ctk.CTkLabel(status_frame, text="Ollama:")
+            ollama_label.pack(side="left", padx=(0, 5))
+
+            self.ollama_status = ctk.CTkLabel(
+                status_frame, text="●", text_color="yellow", font=ctk.CTkFont(size=16)
+            )
+            self.ollama_status.pack(side="left", padx=(0, 10))
+
+            self.ollama_btn = ctk.CTkButton(
+                status_frame,
+                text="Start",
+                width=60,
+                height=28,
+                command=self._start_ollama,
+                state="disabled",
+            )
+            self.ollama_btn.pack(side="left", padx=(0, 10))
+        else:
+            # Create placeholder attributes for SaaS mode
+            self.ollama_status = ctk.CTkLabel(status_frame, text="")
+            self.ollama_btn = ctk.CTkButton(status_frame, text="", width=0, height=0)
 
         # Refresh button
         refresh_btn = ctk.CTkButton(
@@ -264,6 +464,59 @@ class MeetingNotesApp(ctk.CTk):
         # Right column - Advanced settings
         right_col = ctk.CTkFrame(settings_frame, fg_color="transparent")
         right_col.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+
+        # LLM Provider
+        provider_frame = ctk.CTkFrame(right_col, fg_color="transparent")
+        provider_frame.pack(fill="x", pady=5)
+
+        provider_label = ctk.CTkLabel(provider_frame, text="LLM Provider:", width=120, anchor="w")
+        provider_label.pack(side="left")
+
+        # Build provider list - always show all options
+        # Cloud (Subscription) is first if SaaS mode is enabled
+        if self._saas_mode:
+            provider_values = ["Cloud (Subscription)", "Groq (Cloud - Fast)", "Ollama (Local)", "HuggingFace (Cloud)"]
+        else:
+            provider_values = ["Groq (Cloud - Fast)", "Ollama (Local)", "HuggingFace (Cloud)"]
+
+        self.provider_dropdown = ctk.CTkComboBox(
+            provider_frame,
+            width=200,
+            values=provider_values,
+            state="readonly",
+            command=self._on_provider_change,
+        )
+
+        # Set default based on config (ZNT_LLM_PROVIDER)
+        settings = get_settings()
+        provider_map = {
+            "cloud": "Cloud (Subscription)",
+            "groq": "Groq (Cloud - Fast)",
+            "ollama": "Ollama (Local)",
+            "huggingface": "HuggingFace (Cloud)",
+        }
+        configured_provider = settings.llm_provider.lower()
+        if configured_provider in provider_map:
+            # Use configured provider if available in dropdown
+            provider_name = provider_map[configured_provider]
+            if provider_name in provider_values:
+                self.provider_dropdown.set(provider_name)
+            elif settings.groq_api_key:
+                self.provider_dropdown.set("Groq (Cloud - Fast)")
+            else:
+                self.provider_dropdown.set("Ollama (Local)")
+        elif self._saas_mode:
+            self.provider_dropdown.set("Cloud (Subscription)")
+        elif settings.groq_api_key:
+            self.provider_dropdown.set("Groq (Cloud - Fast)")
+        else:
+            self.provider_dropdown.set("Ollama (Local)")
+        self.provider_dropdown.pack(side="left", padx=10)
+
+        self.provider_status = ctk.CTkLabel(
+            provider_frame, text="●", text_color="yellow", font=ctk.CTkFont(size=14)
+        )
+        self.provider_status.pack(side="left", padx=5)
 
         # LLM Model
         model_frame = ctk.CTkFrame(right_col, fg_color="transparent")
@@ -514,6 +767,104 @@ class MeetingNotesApp(ctk.CTk):
             self._new_preset()
             self._show_info("Preset deleted.")
 
+    def _get_selected_provider(self) -> str:
+        """Get the currently selected provider ID."""
+        provider_text = self.provider_dropdown.get()
+        if "Cloud" in provider_text and "Subscription" in provider_text:
+            return "cloud"
+        elif "Groq" in provider_text:
+            return "groq"
+        elif "HuggingFace" in provider_text:
+            return "huggingface"
+        else:
+            return "ollama"
+
+    def _on_provider_change(self, value: str):
+        """Handle provider dropdown change."""
+        self._check_provider_status()
+        self._load_models_for_provider()
+
+    def _check_provider_status(self) -> bool:
+        """Check if the selected provider is available."""
+        provider = self._get_selected_provider()
+
+        def check_status():
+            # For cloud provider, check auth status
+            if provider == "cloud":
+                if self._auth_manager and self._auth_manager.is_logged_in:
+                    return True, None
+                return False, "Sign in required"
+
+            # Get access token for provider check
+            token = self._auth_manager.access_token if self._auth_manager else None
+            providers = get_available_providers(access_token=token)
+            for p in providers:
+                if p["id"] == provider:
+                    return p["available"], p.get("reason", "")
+            return False, "Unknown provider"
+
+        def update_status(available: bool, reason: str):
+            if available:
+                self.provider_status.configure(text="●", text_color="green")
+                if provider == "ollama" and not self._saas_mode:
+                    self.ollama_btn.configure(state="disabled")
+            else:
+                self.provider_status.configure(text="●", text_color="red")
+                if provider == "ollama" and not self._saas_mode:
+                    self.ollama_btn.configure(state="normal")
+
+        # Run check in background to avoid blocking UI
+        def bg_check():
+            available, reason = check_status()
+            self.after(0, lambda: update_status(available, reason))
+
+        threading.Thread(target=bg_check, daemon=True).start()
+        return True
+
+    def _load_models_for_provider(self):
+        """Load models for the selected provider."""
+        provider = self._get_selected_provider()
+        if provider == "cloud":
+            self._load_groq_models()  # Cloud uses Groq on backend
+        elif provider == "ollama":
+            self._load_ollama_models()
+        elif provider == "groq":
+            self._load_groq_models()
+        else:
+            self._load_huggingface_models()
+
+    def _load_groq_models(self):
+        """Load available Groq models."""
+        models = [
+            "llama-3.1-8b-instant",
+            "llama-3.1-70b-versatile",
+            "llama-3.3-70b-versatile",
+            "mixtral-8x7b-32768",
+            "gemma2-9b-it",
+        ]
+        self.model_dropdown.configure(values=models)
+        settings = get_settings()
+        if settings.groq_model in models:
+            self.model_dropdown.set(settings.groq_model)
+        else:
+            self.model_dropdown.set(models[0])
+
+    def _load_huggingface_models(self):
+        """Load recommended HuggingFace models."""
+        models = [
+            "meta-llama/Llama-3.1-8B-Instruct",
+            "meta-llama/Llama-3.1-70B-Instruct",
+            "mistralai/Mistral-7B-Instruct-v0.3",
+            "mistralai/Mixtral-8x7B-Instruct-v0.1",
+            "Qwen/Qwen2.5-7B-Instruct",
+        ]
+        self.model_dropdown.configure(values=models)
+        settings = get_settings()
+        if settings.hf_model in models:
+            self.model_dropdown.set(settings.hf_model)
+        else:
+            self.model_dropdown.set(models[0])
+
     def _check_ollama_status(self) -> bool:
         """Check if Ollama is running."""
         try:
@@ -644,9 +995,9 @@ class MeetingNotesApp(ctk.CTk):
 
     def _refresh_all(self):
         """Refresh all status indicators."""
-        self._check_ollama_status()
+        self._check_provider_status()
         self._load_audio_devices()
-        self._load_ollama_models()
+        self._load_models_for_provider()
 
     def _toggle_recording(self):
         """Start or stop recording."""
@@ -666,14 +1017,68 @@ class MeetingNotesApp(ctk.CTk):
         context = self.meeting_context.get("1.0", "end").strip() or None
         model = self.model_dropdown.get()
         whisper_model = self.whisper_dropdown.get()
+        provider = self._get_selected_provider()
 
-        if not self._check_ollama_status():
+        # Check provider availability
+        settings = get_settings()
+        if provider == "cloud":
+            # Cloud provider - check auth and subscription
+            if not self._auth_manager or not self._auth_manager.is_logged_in:
+                # Show login screen instead of just an error
+                if _AUTH_AVAILABLE and self._saas_mode:
+                    if not self._auth_manager:
+                        self._auth_manager = AuthManager(on_state_change=self._on_auth_state_change)
+                    self._show_login_screen()
+                else:
+                    error_msg = "Cloud service not available. Please use Groq or Ollama instead."
+                    if _AUTH_IMPORT_ERROR:
+                        error_msg += f"\n\nDebug: {_AUTH_IMPORT_ERROR}"
+                    self._show_error(error_msg)
+                return
+
+            profile = self._auth_manager.user_profile
+            if profile and not profile.can_create_meeting:
+                self._show_error(
+                    f"You've reached your free tier limit of {profile.meetings_limit} "
+                    f"meetings per month.\n\n"
+                    "Upgrade to Pro for unlimited meetings!"
+                )
+                self._show_subscription_screen()
+                return
+
+        elif provider == "ollama" and not self._check_ollama_status():
             self._show_error("Ollama is not running. Please start Ollama first.")
             return
+        elif provider == "groq":
+            if not settings.groq_api_key:
+                self._show_error(
+                    "Groq API key not configured.\n\n"
+                    "Please set GROQ_API_KEY in your .env file.\n"
+                    "Get a FREE API key at: https://console.groq.com/keys"
+                )
+                return
+        elif provider == "huggingface":
+            if not settings.hf_token:
+                self._show_error(
+                    "HuggingFace token not configured.\n\n"
+                    "Please set HF_TOKEN in your .env file.\n"
+                    "Get a token at: https://huggingface.co/settings/tokens"
+                )
+                return
 
         # Update settings
-        settings = get_settings()
-        settings.ollama_model = model
+        settings.llm_provider = provider
+        if provider == "cloud":
+            settings.groq_model = model  # Cloud uses Groq on backend
+            # Set access token for cloud provider
+            if self._auth_manager:
+                set_cloud_access_token(self._auth_manager.access_token)
+        elif provider == "ollama":
+            settings.ollama_model = model
+        elif provider == "groq":
+            settings.groq_model = model
+        else:
+            settings.hf_model = model
         settings.whisper_model = whisper_model
         settings.audio_device = self.input_device.get()
 
@@ -704,6 +1109,7 @@ class MeetingNotesApp(ctk.CTk):
         self.preset_name.configure(state="disabled")
         self.meeting_title.configure(state="disabled")
         self.meeting_context.configure(state="disabled")
+        self.provider_dropdown.configure(state="disabled")
         self.model_dropdown.configure(state="disabled")
         self.whisper_dropdown.configure(state="disabled")
         self.input_device.configure(state="disabled")
@@ -714,6 +1120,7 @@ class MeetingNotesApp(ctk.CTk):
         self.preset_name.configure(state="normal")
         self.meeting_title.configure(state="normal")
         self.meeting_context.configure(state="normal")
+        self.provider_dropdown.configure(state="readonly")
         self.model_dropdown.configure(state="readonly")
         self.whisper_dropdown.configure(state="readonly")
         self.input_device.configure(state="readonly")
@@ -754,15 +1161,31 @@ class MeetingNotesApp(ctk.CTk):
         while self._recording and self._recorder.is_recording:
             await asyncio.sleep(0.1)
 
-        if self._recorder.is_recording:
-            self.after(0, lambda: self.status_label.configure(
-                text="Generating notes...", text_color="yellow"
-            ))
-            await self._recorder.stop()
+        # Always try to stop and generate notes
+        self.after(0, lambda: self.status_label.configure(
+            text="Generating notes...", text_color="yellow"
+        ))
 
-            if self._recorder.current_session and self._recorder.current_session.notes_path:
-                self._notes_path = Path(self._recorder.current_session.notes_path)
-                self.after(0, self._on_recording_complete)
+        try:
+            # Always call stop() - it will handle the recording state internally
+            notes = await self._recorder.stop()
+
+            # Get notes path from session
+            if self._recorder.current_session:
+                if self._recorder.current_session.notes_path:
+                    self._notes_path = Path(self._recorder.current_session.notes_path)
+                    print(f"Notes saved to: {self._notes_path}")
+                    self.after(0, self._on_recording_complete)
+                else:
+                    print("Warning: notes_path not set on session")
+            else:
+                print("Warning: current_session is None")
+        except RuntimeError as e:
+            # "No recording in progress" is expected if already stopped
+            print(f"Recording already stopped: {e}")
+        except Exception as e:
+            print(f"Error stopping recording: {e}")
+            self.after(0, lambda err=str(e): self._show_error(f"Error generating notes: {err}"))
 
     def _stop_recording(self):
         """Stop the current recording."""

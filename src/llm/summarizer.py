@@ -1,10 +1,11 @@
-"""Meeting summarization using Ollama LLM."""
+"""Meeting summarization using LLM (Ollama or HuggingFace)."""
 
 from dataclasses import dataclass, field
 from typing import Optional
 
 from ..utils.logging_config import get_logger
-from .ollama_client import OllamaClient
+from .base import LLMClient
+from .factory import create_llm_client
 from .prompts import (
     ACTION_ITEMS_PROMPT,
     DECISIONS_PROMPT,
@@ -48,20 +49,21 @@ class MeetingSummary:
 
 class MeetingSummarizer:
     """
-    Summarizes meeting transcripts using Ollama LLM.
+    Summarizes meeting transcripts using LLM.
 
     This class orchestrates multiple LLM calls to extract different
-    types of information from a meeting transcript.
+    types of information from a meeting transcript. Supports both
+    Ollama (local) and HuggingFace (cloud) providers.
     """
 
-    def __init__(self, client: Optional[OllamaClient] = None):
+    def __init__(self, client: Optional[LLMClient] = None):
         """
         Initialize the summarizer.
 
         Args:
-            client: OllamaClient instance (created if not provided)
+            client: LLMClient instance (created from config if not provided)
         """
-        self.client = client or OllamaClient()
+        self.client = client or create_llm_client()
 
     def summarize(self, transcript: str, custom_context: Optional[str] = None) -> MeetingSummary:
         """
@@ -85,6 +87,14 @@ class MeetingSummarizer:
                 meeting_type="other",
             )
 
+        # Check if transcript is mostly test/greeting content
+        if self._is_minimal_content(transcript):
+            logger.warning("Transcript contains minimal substantive content")
+            return MeetingSummary(
+                summary="This recording contains only brief test audio or greetings with no substantive meeting content.",
+                meeting_type="other",
+            )
+
         summary = MeetingSummary()
 
         # Build system prompt with custom context
@@ -97,29 +107,36 @@ class MeetingSummarizer:
             summary.summary = self._generate_summary(transcript, system_prompt)
             logger.info("Generated summary")
         except Exception as e:
-            logger.error(f"Error generating summary: {e}")
-            summary.summary = "Error generating summary."
+            error_msg = str(e)
+            logger.error(f"Error generating summary: {error_msg}")
+            summary.summary = f"Error generating summary: {error_msg}"
 
         # Extract key points
         try:
             summary.key_points = self._extract_key_points(transcript)
             logger.info(f"Extracted {len(summary.key_points)} key points")
         except Exception as e:
-            logger.error(f"Error extracting key points: {e}")
+            error_msg = str(e)
+            logger.error(f"Error extracting key points: {error_msg}")
+            summary.key_points = [f"Error: {error_msg}"]
 
         # Extract action items
         try:
             summary.action_items = self._extract_action_items(transcript)
             logger.info(f"Extracted {len(summary.action_items)} action items")
         except Exception as e:
-            logger.error(f"Error extracting action items: {e}")
+            error_msg = str(e)
+            logger.error(f"Error extracting action items: {error_msg}")
+            summary.action_items = [ActionItem(task=f"Error: {error_msg}")]
 
         # Extract decisions
         try:
             summary.decisions = self._extract_decisions(transcript)
             logger.info(f"Extracted {len(summary.decisions)} decisions")
         except Exception as e:
-            logger.error(f"Error extracting decisions: {e}")
+            error_msg = str(e)
+            logger.error(f"Error extracting decisions: {error_msg}")
+            summary.decisions = [Decision(decision=f"Error: {error_msg}")]
 
         # Detect meeting type
         try:
@@ -142,11 +159,20 @@ class MeetingSummarizer:
         prompt = KEY_POINTS_PROMPT.format(transcript=self._truncate(transcript, 8000))
         response = self.client.generate(prompt, system=SYSTEM_PROMPT)
 
+        # Check for "no key points" response
+        response_lower = response.lower().strip()
+        if "no key points" in response_lower or "no substantive" in response_lower:
+            return []
+
         # Parse numbered list
         points = []
         for line in response.strip().split("\n"):
             line = line.strip()
             if not line:
+                continue
+            # Skip lines that indicate no content
+            line_lower = line.lower()
+            if "no key points" in line_lower or "no substantive" in line_lower:
                 continue
             # Remove numbering
             if line[0].isdigit():
@@ -240,6 +266,49 @@ class MeetingSummarizer:
         if len(text) <= max_chars:
             return text
         return text[:max_chars] + "\n\n[Transcript truncated for analysis...]"
+
+    def _is_minimal_content(self, transcript: str) -> bool:
+        """
+        Check if transcript contains minimal/non-substantive content.
+
+        Returns True if the transcript is mostly greetings, test phrases,
+        or other non-meeting content.
+        """
+        # Normalize text
+        text = transcript.lower().strip()
+        words = text.split()
+
+        # If very few words, check for common test/greeting patterns
+        if len(words) < 20:
+            test_patterns = [
+                "hello", "hi", "hey", "can you hear", "hear me",
+                "am i speaking", "testing", "test", "check", "is this working",
+                "can you see", "good morning", "good afternoon", "good evening",
+                "how are you", "nice to meet", "thanks for joining",
+            ]
+            text_lower = text
+            matches = sum(1 for pattern in test_patterns if pattern in text_lower)
+            # If most of the short transcript is test/greeting patterns
+            if matches >= 1 and len(words) < 15:
+                return True
+
+        # Count unique substantive words (excluding common words)
+        stop_words = {
+            "a", "an", "the", "is", "are", "was", "were", "be", "been",
+            "i", "you", "we", "they", "it", "my", "your", "our", "their",
+            "this", "that", "these", "those", "and", "or", "but", "so",
+            "to", "for", "of", "in", "on", "at", "by", "with", "from",
+            "yes", "no", "ok", "okay", "um", "uh", "hmm", "yeah", "yep",
+            "hello", "hi", "hey", "thanks", "thank", "please", "can", "will",
+            "just", "like", "know", "think", "going", "gonna", "want",
+        }
+        substantive_words = [w for w in words if w not in stop_words and len(w) > 2]
+
+        # If very few substantive words, it's minimal content
+        if len(substantive_words) < 5:
+            return True
+
+        return False
 
     def generate_quick_summary(self, transcript: str) -> str:
         """
