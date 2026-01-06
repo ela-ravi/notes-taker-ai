@@ -46,6 +46,7 @@ class CloudLLMClient(LLMClient):
         supabase_url: Optional[str] = None,
         model: str = "llama-3.1-8b-instant",
         temperature: float = 0.3,
+        token_refresh_callback: Optional[callable] = None,
     ):
         """Initialize the Cloud LLM client.
 
@@ -54,9 +55,11 @@ class CloudLLMClient(LLMClient):
             supabase_url: Supabase project URL (defaults to SUPABASE_URL env var)
             model: Model to use for generation
             temperature: Temperature for generation
+            token_refresh_callback: Optional callback to get a fresh token if auth fails
         """
         self._access_token = access_token
         self._supabase_url = supabase_url or os.getenv("SUPABASE_URL")
+        self._token_refresh_callback = token_refresh_callback
 
         if not self._supabase_url:
             raise ValueError("SUPABASE_URL environment variable is required")
@@ -147,6 +150,22 @@ class CloudLLMClient(LLMClient):
             },
         )
 
+        # Try to refresh token on auth error
+        if response.status_code == 401 and self._token_refresh_callback:
+            new_token = self._token_refresh_callback()
+            if new_token:
+                self._access_token = new_token
+                # Retry with new token
+                response = self._client.post(
+                    self._get_endpoint(),
+                    headers=self._get_headers(),
+                    json={
+                        "model": self._model,
+                        "messages": messages,
+                        "temperature": self._temperature,
+                    },
+                )
+
         return self._handle_response(response)
 
     def generate_json(self, prompt: str, system: Optional[str] = None) -> Any:
@@ -180,6 +199,23 @@ class CloudLLMClient(LLMClient):
                 "response_format": {"type": "json_object"},
             },
         )
+
+        # Try to refresh token on auth error
+        if response.status_code == 401 and self._token_refresh_callback:
+            new_token = self._token_refresh_callback()
+            if new_token:
+                self._access_token = new_token
+                # Retry with new token
+                response = self._client.post(
+                    self._get_endpoint(),
+                    headers=self._get_headers(),
+                    json={
+                        "model": self._model,
+                        "messages": messages,
+                        "temperature": self._temperature,
+                        "response_format": {"type": "json_object"},
+                    },
+                )
 
         text = self._handle_response(response)
 

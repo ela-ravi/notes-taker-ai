@@ -152,11 +152,32 @@ def select_ollama_model() -> str:
 @click.option("--model", "-m", default=None, help="Model to use (default: from config)")
 @click.option("--default-model", "-d", is_flag=True, help="Use default provider and model without prompting")
 @click.option("--context", "-c", default=None, help="Additional context for notes generation (e.g., 'Focus on action items for frontend team')")
-def start(title: str, provider: Optional[str], model: Optional[str], default_model: bool, context: Optional[str]):
+@click.option("--output-dir", "-o", default=None, type=click.Path(path_type=Path), help="Custom directory for meeting notes (default: ~/Documents/ZoomNotes/notes)")
+@click.option("--recordings-dir", "-r", default=None, type=click.Path(path_type=Path), help="Custom directory for recordings (default: ~/Documents/ZoomNotes/recordings)")
+@click.option("--base-dir", "-b", default=None, type=click.Path(path_type=Path), help="Base directory for both notes and recordings (creates /notes and /recordings subdirs)")
+def start(title: str, provider: Optional[str], model: Optional[str], default_model: bool, context: Optional[str], 
+          output_dir: Optional[Path], recordings_dir: Optional[Path], base_dir: Optional[Path]):
     """Start recording a Zoom meeting."""
     global _recorder, _stop_event
 
     settings = get_settings()
+    
+    # Set custom directories if provided
+    if base_dir:
+        from .config import set_base_directory
+        set_base_directory(base_dir)
+        console.print(f"[green]Using base directory:[/green] {base_dir}")
+        console.print(f"  Notes: {base_dir}/notes")
+        console.print(f"  Recordings: {base_dir}/recordings")
+    else:
+        if output_dir:
+            from .config import set_output_directory
+            set_output_directory(output_dir)
+            console.print(f"[green]Using output directory:[/green] {output_dir}")
+        if recordings_dir:
+            from .config import set_recordings_directory
+            set_recordings_directory(recordings_dir)
+            console.print(f"[green]Using recordings directory:[/green] {recordings_dir}")
 
     # Select provider
     if provider is not None:
@@ -302,8 +323,16 @@ def start(title: str, provider: Optional[str], model: Optional[str], default_mod
 @click.argument("audio_file", type=click.Path(exists=True, path_type=Path))
 @click.option("--output", "-o", type=click.Path(path_type=Path), help="Output file path")
 @click.option("--title", "-t", default="Meeting Notes", help="Meeting title")
-def transcribe(audio_file: Path, output: Optional[Path], title: str):
+@click.option("--output-dir", default=None, type=click.Path(path_type=Path), help="Custom directory for meeting notes")
+def transcribe(audio_file: Path, output: Optional[Path], title: str, output_dir: Optional[Path]):
     """Transcribe an existing audio file and generate notes."""
+    
+    # Set custom output directory if provided
+    if output_dir:
+        from .config import set_output_directory
+        set_output_directory(output_dir)
+        console.print(f"[green]Using output directory:[/green] {output_dir}")
+    
     console.print(f"[blue]Transcribing:[/blue] {audio_file}")
 
     def on_progress(_message: str, _percentage: float):
@@ -485,6 +514,205 @@ def devices():
         console.print("\n[green]✓ BlackHole detected[/green]")
     else:
         console.print("\n[yellow]BlackHole not found. Install with: brew install blackhole-2ch[/yellow]")
+
+
+@cli.command()
+@click.argument("notes_file", type=click.Path(exists=True, path_type=Path))
+@click.option("--provider", "-p", default=None, type=click.Choice(["ollama", "groq", "huggingface", "cloud"]), help="LLM provider to use")
+@click.option("--model", "-m", default=None, help="Model to use")
+def retry(notes_file: Path, provider: Optional[str], model: Optional[str]):
+    """Regenerate summary from existing notes file with transcript.
+    
+    Use this when summary generation failed but transcript is available.
+    Supports both .html and .md files.
+    
+    Example:
+        zoom-notes retry output/2026-01-06_ATVE_Standup.html --provider ollama
+    """
+    import re
+    from bs4 import BeautifulSoup
+    
+    # Read the file
+    content = notes_file.read_text(encoding='utf-8')
+    
+    # Extract transcript based on file type
+    transcript = None
+    title = "Meeting Notes"
+    duration = 0
+    
+    if notes_file.suffix == '.html':
+        # Parse HTML
+        soup = BeautifulSoup(content, 'html.parser')
+        
+        # Get title
+        title_elem = soup.find('h1')
+        if title_elem:
+            title = title_elem.get_text().strip()
+        
+        # Get duration
+        duration_text = soup.find(string=re.compile(r'\d+ minutes'))
+        if duration_text:
+            match = re.search(r'(\d+)', duration_text)
+            if match:
+                duration = int(match.group(1))
+        
+        # Get transcript section - look for div with class="transcript"
+        transcript_div = soup.find('div', class_='transcript')
+        if transcript_div:
+            # Get the text content
+            transcript = transcript_div.get_text().strip()
+        else:
+            # Fallback: look for h2 with "Full Transcript" text
+            transcript_section = soup.find('h2', string=re.compile(r'Full Transcript'))
+            if transcript_section:
+                # Get the next sibling div
+                next_div = transcript_section.find_next('div')
+                if next_div:
+                    # Look for div with class transcript inside
+                    transcript_content = next_div.find('div', class_='transcript')
+                    if transcript_content:
+                        transcript = transcript_content.get_text().strip()
+    
+    elif notes_file.suffix == '.md':
+        # Parse Markdown
+        lines = content.split('\n')
+        
+        # Get title (first line starting with #)
+        for line in lines:
+            if line.startswith('# '):
+                title = line.replace('# ', '').strip()
+                break
+        
+        # Get duration
+        for line in lines:
+            if 'minutes' in line.lower():
+                match = re.search(r'(\d+)\s*minutes', line)
+                if match:
+                    duration = int(match.group(1))
+                break
+        
+        # Extract transcript (everything after ## Full Transcript)
+        in_transcript = False
+        transcript_lines = []
+        for line in lines:
+            if line.strip() == '## Full Transcript':
+                in_transcript = True
+                continue
+            if in_transcript:
+                if line.startswith('##'):  # New section
+                    break
+                if line.strip() and not line.startswith('Generated on'):
+                    transcript_lines.append(line)
+        
+        transcript = '\n'.join(transcript_lines)
+    
+    if not transcript or len(transcript.strip()) < 50:
+        console.print("[red]Error: Could not extract transcript from file.[/red]")
+        console.print("[yellow]Make sure the file contains a 'Full Transcript' section.[/yellow]")
+        return
+    
+    console.print(f"[green]Found transcript:[/green] {len(transcript)} characters")
+    console.print(f"[blue]Title:[/blue] {title}")
+    console.print(f"[blue]Duration:[/blue] {duration} minutes\n")
+    
+    # Select provider
+    settings = get_settings()
+    if provider:
+        selected_provider = provider
+        console.print(f"[cyan]Using specified provider:[/cyan] {provider}")
+    else:
+        console.print("[yellow]Authentication error detected - trying fallback providers...[/yellow]")
+        # Auto-select available provider
+        providers = get_available_providers()
+        available = [p for p in providers if p['available'] and p['id'] != 'cloud']
+        
+        if available:
+            selected_provider = available[0]['id']
+            console.print(f"[cyan]Using:[/cyan] {available[0]['name']}")
+        else:
+            console.print("[red]No available providers! Please configure Ollama, Groq, or HuggingFace.[/red]")
+            return
+    
+    settings.llm_provider = selected_provider
+    
+    # Select model
+    if model:
+        selected_model = model
+    else:
+        if selected_provider == "ollama":
+            selected_model = settings.ollama_model
+        elif selected_provider == "groq":
+            selected_model = settings.groq_model
+        elif selected_provider == "cloud":
+            selected_model = "llama-3.1-8b-instant"
+        else:
+            selected_model = settings.hf_model
+    
+    # Update model setting
+    if selected_provider == "ollama":
+        settings.ollama_model = selected_model
+    elif selected_provider == "groq":
+        settings.groq_model = selected_model
+    
+    console.print(f"[cyan]Using model:[/cyan] {selected_model}\n")
+    
+    # Regenerate notes from transcript
+    async def regenerate():
+        generator = NotesGenerator()
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Regenerating summary...", total=100)
+            
+            def update_progress(message: str, percentage: float):
+                progress.update(task, completed=percentage, description=message)
+            
+            generator.on_progress = update_progress
+            
+            try:
+                # Generate new notes from transcript
+                notes = await generator.generate_from_transcript(
+                    transcript=transcript,
+                    title=title,
+                    duration_minutes=duration,
+                    output_path=notes_file.with_suffix('.md')  # Save to original location
+                )
+                
+                progress.update(task, completed=100, description="Complete!")
+                
+                # Display results
+                console.print()
+                console.print(Panel(
+                    f"[bold]Summary:[/bold]\n{notes.summary}\n\n"
+                    f"[bold]Key Points:[/bold] {len(notes.key_points)}\n"
+                    f"[bold]Action Items:[/bold] {len(notes.action_items)}\n"
+                    f"[bold]Decisions:[/bold] {len(notes.decisions)}",
+                    title="✓ Notes Regenerated Successfully",
+                    border_style="green",
+                ))
+                
+                md_path = notes_file.with_suffix('.md')
+                html_path = notes_file.with_suffix('.html')
+                
+                console.print(f"\n[green]Updated files:[/green]")
+                console.print(f"  Markdown: {md_path}")
+                console.print(f"  HTML:     {html_path}")
+                
+                # Auto-open HTML in browser
+                import webbrowser
+                webbrowser.open(f"file://{html_path.absolute()}")
+                
+            except Exception as e:
+                console.print(f"\n[red]Error regenerating notes:[/red] {e}")
+                import traceback
+                console.print(f"[dim]{traceback.format_exc()}[/dim]")
+    
+    asyncio.run(regenerate())
 
 
 @cli.command()

@@ -162,3 +162,42 @@ def reload_settings() -> Settings:
     global _settings
     _settings = Settings()
     return _settings
+
+
+def set_output_directory(output_dir: Path) -> None:
+    """Set custom output directory for meeting notes.
+    
+    Args:
+        output_dir: Path to the output directory
+    """
+    settings = get_settings()
+    settings.output_dir = Path(output_dir).expanduser().resolve()
+    settings.ensure_directories()
+
+
+def set_recordings_directory(recordings_dir: Path) -> None:
+    """Set custom recordings directory for audio files.
+    
+    Args:
+        recordings_dir: Path to the recordings directory
+    """
+    settings = get_settings()
+    settings.recordings_dir = Path(recordings_dir).expanduser().resolve()
+    settings.ensure_directories()
+
+
+def set_base_directory(base_dir: Path) -> None:
+    """Set base directory for both notes and recordings.
+    
+    This will set:
+    - output_dir to {base_dir}/notes
+    - recordings_dir to {base_dir}/recordings
+    
+    Args:
+        base_dir: Base directory path
+    """
+    settings = get_settings()
+    base_path = Path(base_dir).expanduser().resolve()
+    settings.output_dir = base_path / "notes"
+    settings.recordings_dir = base_path / "recordings"
+    settings.ensure_directories()

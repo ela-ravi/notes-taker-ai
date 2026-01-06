@@ -580,6 +580,28 @@ class MeetingNotesApp(ctk.CTk):
         self.output_device = ctk.CTkComboBox(output_frame, width=200, state="readonly")
         self.output_device.pack(side="left", padx=10, fill="x", expand=True)
 
+        # Output directory
+        output_dir_frame = ctk.CTkFrame(right_col, fg_color="transparent")
+        output_dir_frame.pack(fill="x", pady=5)
+
+        output_dir_label = ctk.CTkLabel(output_dir_frame, text="Output Folder:", width=120, anchor="w")
+        output_dir_label.pack(side="left")
+
+        self.output_dir_entry = ctk.CTkEntry(
+            output_dir_frame,
+            width=150,
+            placeholder_text="Default: ~/Documents/ZoomNotes"
+        )
+        self.output_dir_entry.pack(side="left", padx=10, fill="x", expand=True)
+
+        browse_btn = ctk.CTkButton(
+            output_dir_frame,
+            text="📁",
+            width=40,
+            command=self._browse_output_directory
+        )
+        browse_btn.pack(side="left", padx=5)
+
         # Save preset button
         save_frame = ctk.CTkFrame(settings_frame, fg_color="transparent")
         save_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 10))
@@ -1009,6 +1031,25 @@ class MeetingNotesApp(ctk.CTk):
         else:
             self._show_info("Please set audio devices manually in Windows Sound Settings.")
 
+    def _browse_output_directory(self):
+        """Browse for output directory."""
+        from tkinter import filedialog
+        
+        initial_dir = self.output_dir_entry.get().strip()
+        if not initial_dir:
+            settings = get_settings()
+            initial_dir = str(settings.output_dir.parent)
+        
+        directory = filedialog.askdirectory(
+            title="Select Output Directory",
+            initialdir=initial_dir,
+        )
+        
+        if directory:
+            self.output_dir_entry.delete(0, "end")
+            self.output_dir_entry.insert(0, directory)
+            self._update_status(f"Output directory set to: {directory}")
+
     def _refresh_all(self):
         """Refresh all status indicators."""
         self._check_provider_status()
@@ -1097,6 +1138,15 @@ class MeetingNotesApp(ctk.CTk):
             settings.hf_model = model
         settings.whisper_model = whisper_model
         settings.audio_device = self.input_device.get()
+        
+        # Set custom output directory if provided
+        custom_output = self.output_dir_entry.get().strip()
+        if custom_output:
+            from ..config import set_base_directory
+            set_base_directory(Path(custom_output))
+            self._update_status(f"Using custom output: {custom_output}")
+        
+        settings.ensure_directories()
 
         # Update UI
         self._recording = True

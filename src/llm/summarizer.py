@@ -102,36 +102,36 @@ class MeetingSummarizer:
         if custom_context:
             system_prompt += f"\n\nAdditional context from user:\n{custom_context}"
 
-        # Generate summary
+        # Generate summary with fallback
         try:
-            summary.summary = self._generate_summary(transcript, system_prompt)
+            summary.summary = self._generate_summary_with_fallback(transcript, system_prompt)
             logger.info("Generated summary")
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Error generating summary: {error_msg}")
             summary.summary = f"Error generating summary: {error_msg}"
 
-        # Extract key points
+        # Extract key points with fallback
         try:
-            summary.key_points = self._extract_key_points(transcript)
+            summary.key_points = self._extract_key_points_with_fallback(transcript)
             logger.info(f"Extracted {len(summary.key_points)} key points")
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Error extracting key points: {error_msg}")
             summary.key_points = [f"Error: {error_msg}"]
 
-        # Extract action items
+        # Extract action items with fallback
         try:
-            summary.action_items = self._extract_action_items(transcript)
+            summary.action_items = self._extract_action_items_with_fallback(transcript)
             logger.info(f"Extracted {len(summary.action_items)} action items")
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Error extracting action items: {error_msg}")
             summary.action_items = [ActionItem(task=f"Error: {error_msg}")]
 
-        # Extract decisions
+        # Extract decisions with fallback
         try:
-            summary.decisions = self._extract_decisions(transcript)
+            summary.decisions = self._extract_decisions_with_fallback(transcript)
             logger.info(f"Extracted {len(summary.decisions)} decisions")
         except Exception as e:
             error_msg = str(e)
@@ -147,6 +147,72 @@ class MeetingSummarizer:
             summary.meeting_type = "other"
 
         return summary
+    
+    def _is_auth_error(self, error: Exception) -> bool:
+        """Check if error is an authentication error."""
+        error_str = str(error).lower()
+        auth_keywords = ['authentication', 'auth', 'token', 'unauthorized', '401']
+        return any(keyword in error_str for keyword in auth_keywords)
+    
+    def _try_with_fallback_provider(self, func, *args, **kwargs):
+        """Try a function with fallback to alternative providers on auth failure."""
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            if not self._is_auth_error(e):
+                raise
+            
+            logger.warning(f"Authentication failed with current provider: {e}")
+            logger.info("Attempting to use fallback provider...")
+            
+            # Try to get fallback providers
+            from .factory import get_available_providers
+            from ..config import get_settings
+            
+            providers = get_available_providers()
+            settings = get_settings()
+            current_provider = settings.llm_provider
+            
+            # Get list of available providers, excluding cloud and current
+            fallback_order = ['groq', 'ollama', 'huggingface']
+            available = [p['id'] for p in providers if p['available'] and p['id'] != current_provider and p['id'] != 'cloud']
+            
+            # Try each fallback in order
+            for provider_id in fallback_order:
+                if provider_id in available:
+                    logger.info(f"Trying fallback provider: {provider_id}")
+                    try:
+                        # Create new client with fallback provider
+                        fallback_client = create_llm_client(provider=provider_id)
+                        original_client = self.client
+                        self.client = fallback_client
+                        
+                        result = func(*args, **kwargs)
+                        logger.info(f"Successfully used fallback provider: {provider_id}")
+                        return result
+                    except Exception as fallback_error:
+                        logger.warning(f"Fallback provider {provider_id} also failed: {fallback_error}")
+                        self.client = original_client
+                        continue
+            
+            # If all fallbacks failed, raise the original error
+            raise
+
+    def _generate_summary_with_fallback(self, transcript: str, system_prompt: Optional[str] = None) -> str:
+        """Generate summary with automatic fallback on auth failure."""
+        return self._try_with_fallback_provider(self._generate_summary, transcript, system_prompt)
+    
+    def _extract_key_points_with_fallback(self, transcript: str) -> list[str]:
+        """Extract key points with automatic fallback on auth failure."""
+        return self._try_with_fallback_provider(self._extract_key_points, transcript)
+    
+    def _extract_action_items_with_fallback(self, transcript: str) -> list[ActionItem]:
+        """Extract action items with automatic fallback on auth failure."""
+        return self._try_with_fallback_provider(self._extract_action_items, transcript)
+    
+    def _extract_decisions_with_fallback(self, transcript: str) -> list[Decision]:
+        """Extract decisions with automatic fallback on auth failure."""
+        return self._try_with_fallback_provider(self._extract_decisions, transcript)
 
     def _generate_summary(self, transcript: str, system_prompt: Optional[str] = None) -> str:
         """Generate a concise summary of the meeting."""
