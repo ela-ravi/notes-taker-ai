@@ -211,3 +211,4 @@ For issues:
 Your DMG is ready for distribution at:
 **`dist/MeetingNotes-1.0.0.dmg`**
 
+

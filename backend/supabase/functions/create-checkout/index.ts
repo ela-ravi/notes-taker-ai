@@ -61,6 +61,14 @@ serve(async (req) => {
       )
     }
 
+    // Get the website URL from environment or use default
+    const WEBSITE_URL = Deno.env.get('WEBSITE_URL') || 'https://yourdomain.com'
+    
+    // Use web-based redirect URLs that work in browsers
+    // The app will poll for subscription status changes
+    const defaultSuccessUrl = `${WEBSITE_URL}/subscription-success?user_id=${user.id}`
+    const defaultCancelUrl = `${WEBSITE_URL}/subscription-cancelled`
+
     // Create Dodo Payments checkout session
     // Note: Adjust this based on actual Dodo Payments API
     const checkoutResponse = await fetch(`${DODO_API_URL}/checkout/sessions`, {
@@ -76,8 +84,8 @@ serve(async (req) => {
           user_id: user.id,
           supabase_user_id: user.id,
         },
-        success_url: success_url || 'meetingnotes://subscription-success',
-        cancel_url: cancel_url || 'meetingnotes://subscription-cancel',
+        success_url: success_url || defaultSuccessUrl,
+        cancel_url: cancel_url || defaultCancelUrl,
       }),
     })
 

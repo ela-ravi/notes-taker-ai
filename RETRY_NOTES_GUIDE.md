@@ -131,3 +131,4 @@ pip install beautifulsoup4
 - Run `python -m src.main setup` to verify your installation
 - Make sure at least one LLM provider is configured
 
+

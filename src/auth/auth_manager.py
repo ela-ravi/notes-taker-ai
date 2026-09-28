@@ -215,6 +215,16 @@ class AuthManager:
 
         return False
 
+    def refresh_user_profile(self) -> bool:
+        """Refresh user profile data from Supabase.
+        
+        This is useful for checking subscription status changes after payment.
+        
+        Returns:
+            True if profile was successfully refreshed, False otherwise
+        """
+        return self._fetch_profile_sync()
+
     def sign_up(self, email: str, password: str, full_name: Optional[str] = None) -> tuple[bool, str]:
         """Sign up a new user.
 

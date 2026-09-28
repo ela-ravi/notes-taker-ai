@@ -1,5 +1,7 @@
 """Login/Signup screen for Meeting Notes Taker."""
 
+import threading
+import time
 import webbrowser
 from typing import Callable, Optional
 
@@ -289,6 +291,8 @@ class SubscriptionScreen(ctk.CTkFrame):
         self.on_back = on_back
         self.product_id = product_id
         self.supabase_url = supabase_url
+        self._polling_active = False
+        self._poll_thread: Optional[threading.Thread] = None
 
         self._setup_ui()
 
@@ -437,10 +441,13 @@ class SubscriptionScreen(ctk.CTkFrame):
                 checkout_url = data.get("checkout_url")
                 if checkout_url:
                     self.status_label.configure(
-                        text="Opening checkout in browser...",
+                        text="Opening checkout in browser...\nPlease complete your payment.",
                         text_color="green"
                     )
                     webbrowser.open(checkout_url)
+                    
+                    # Start polling for subscription status
+                    self._start_subscription_polling()
                 else:
                     self.status_label.configure(
                         text="Failed to get checkout URL.",
@@ -454,3 +461,79 @@ class SubscriptionScreen(ctk.CTkFrame):
 
         except Exception as e:
             self.status_label.configure(text=f"Error: {e}", text_color="red")
+
+    def _start_subscription_polling(self) -> None:
+        """Start polling for subscription status changes."""
+        if self._polling_active:
+            return  # Already polling
+        
+        self._polling_active = True
+        self._poll_thread = threading.Thread(target=self._poll_subscription_status, daemon=True)
+        self._poll_thread.start()
+
+    def _poll_subscription_status(self) -> None:
+        """Poll for subscription status changes in background thread."""
+        max_polls = 60  # Poll for up to 5 minutes (60 * 5 seconds)
+        poll_count = 0
+        initial_tier = self.auth_manager.user_profile.subscription_tier if self.auth_manager.user_profile else "free"
+        
+        while self._polling_active and poll_count < max_polls:
+            time.sleep(5)  # Poll every 5 seconds
+            poll_count += 1
+            
+            try:
+                # Refresh user profile
+                success = self.auth_manager.refresh_user_profile()
+                
+                if success and self.auth_manager.user_profile:
+                    current_tier = self.auth_manager.user_profile.subscription_tier
+                    
+                    # Check if tier changed to pro
+                    if initial_tier != "pro" and current_tier == "pro":
+                        # Subscription activated!
+                        self._polling_active = False
+                        self._on_subscription_activated()
+                        return
+                        
+            except Exception as e:
+                # Log but don't stop polling
+                print(f"Polling error: {e}")
+        
+        # Polling timed out
+        self._polling_active = False
+        if poll_count >= max_polls:
+            self.after(0, lambda: self.status_label.configure(
+                text="Polling timed out. Please refresh to check status.",
+                text_color="orange"
+            ))
+
+    def _on_subscription_activated(self) -> None:
+        """Called when subscription is successfully activated."""
+        self.after(0, lambda: self._show_upgrade_success())
+
+    def _show_upgrade_success(self) -> None:
+        """Show success message and refresh UI."""
+        # Update status
+        self.status_label.configure(
+            text="🎉 Subscription activated! Refreshing...",
+            text_color="green"
+        )
+        
+        # Rebuild UI after a short delay to show updated plan
+        self.after(2000, self._rebuild_ui)
+
+    def _rebuild_ui(self) -> None:
+        """Rebuild the subscription UI to reflect new plan."""
+        # Clear existing widgets
+        for widget in self.winfo_children():
+            widget.destroy()
+        
+        # Rebuild
+        self._setup_ui()
+
+    def destroy(self) -> None:
+        """Clean up resources when destroying the widget."""
+        self._polling_active = False
+        if self._poll_thread and self._poll_thread.is_alive():
+            self._poll_thread.join(timeout=1.0)
+        super().destroy()

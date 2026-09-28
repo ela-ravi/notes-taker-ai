@@ -454,12 +454,26 @@ class MeetingNotesApp(ctk.CTk):
         context_label = ctk.CTkLabel(context_frame, text="Context:", width=120, anchor="w")
         context_label.pack(side="left", anchor="n", pady=(5, 0))
 
+        context_input_frame = ctk.CTkFrame(context_frame, fg_color="transparent")
+        context_input_frame.pack(side="left", padx=10, fill="x", expand=True)
+
         self.meeting_context = ctk.CTkTextbox(
-            context_frame,
+            context_input_frame,
             height=80,
             font=ctk.CTkFont(size=13),
         )
-        self.meeting_context.pack(side="left", padx=10, fill="x", expand=True)
+        self.meeting_context.pack(fill="x", expand=True)
+
+        # Expand button for context
+        expand_btn = ctk.CTkButton(
+            context_input_frame,
+            text="⛶ Expand",
+            width=80,
+            height=24,
+            font=ctk.CTkFont(size=11),
+            command=self._open_context_overlay,
+        )
+        expand_btn.pack(pady=(5, 0), anchor="e")
 
         # Right column - Advanced settings
         right_col = ctk.CTkFrame(settings_frame, fg_color="transparent")
@@ -1049,6 +1063,135 @@ class MeetingNotesApp(ctk.CTk):
             self.output_dir_entry.delete(0, "end")
             self.output_dir_entry.insert(0, directory)
             self._update_status(f"Output directory set to: {directory}")
+    
+    def _open_context_overlay(self):
+        """Open a full-screen overlay for editing meeting context."""
+        # Create overlay window
+        overlay = ctk.CTkToplevel(self)
+        overlay.title("Meeting Context - Full View")
+        overlay.geometry("900x700")
+        overlay.transient(self)  # Make it a child window
+        overlay.grab_set()  # Make it modal
+        
+        # Center the window
+        overlay.update_idletasks()
+        width = overlay.winfo_width()
+        height = overlay.winfo_height()
+        x = (overlay.winfo_screenwidth() // 2) - (width // 2)
+        y = (overlay.winfo_screenheight() // 2) - (height // 2)
+        overlay.geometry(f'{width}x{height}+{x}+{y}')
+        
+        # Header
+        header = ctk.CTkFrame(overlay, fg_color=("gray85", "gray20"))
+        header.pack(fill="x", padx=0, pady=0)
+        
+        title_label = ctk.CTkLabel(
+            header,
+            text="Meeting Context",
+            font=ctk.CTkFont(size=18, weight="bold"),
+        )
+        title_label.pack(side="left", padx=20, pady=15)
+        
+        # Info label
+        info_label = ctk.CTkLabel(
+            header,
+            text="Add context to guide the AI summarization (e.g., 'Focus on action items for frontend team')",
+            font=ctk.CTkFont(size=12),
+            text_color="gray",
+        )
+        info_label.pack(side="left", padx=10)
+        
+        # Close button in header
+        close_btn = ctk.CTkButton(
+            header,
+            text="✕",
+            width=40,
+            height=40,
+            font=ctk.CTkFont(size=20),
+            fg_color="transparent",
+            hover_color=("gray75", "gray30"),
+            command=overlay.destroy,
+        )
+        close_btn.pack(side="right", padx=10)
+        
+        # Main content area
+        content_frame = ctk.CTkFrame(overlay, fg_color="transparent")
+        content_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Large text area
+        text_area = ctk.CTkTextbox(
+            content_frame,
+            font=ctk.CTkFont(size=14),
+            wrap="word",
+        )
+        text_area.pack(fill="both", expand=True)
+        
+        # Copy current content to overlay
+        current_text = self.meeting_context.get("1.0", "end-1c")
+        text_area.insert("1.0", current_text)
+        text_area.focus_set()
+        
+        # Footer with buttons
+        footer = ctk.CTkFrame(overlay, fg_color="transparent")
+        footer.pack(fill="x", padx=20, pady=(0, 20))
+        
+        # Character count
+        char_count_label = ctk.CTkLabel(
+            footer,
+            text=f"Characters: {len(current_text)}",
+            font=ctk.CTkFont(size=11),
+            text_color="gray",
+        )
+        char_count_label.pack(side="left", padx=10)
+        
+        def update_char_count(event=None):
+            text = text_area.get("1.0", "end-1c")
+            char_count_label.configure(text=f"Characters: {len(text)}")
+        
+        text_area.bind("<KeyRelease>", update_char_count)
+        
+        # Clear button
+        clear_btn = ctk.CTkButton(
+            footer,
+            text="Clear",
+            width=100,
+            command=lambda: text_area.delete("1.0", "end"),
+        )
+        clear_btn.pack(side="right", padx=5)
+        
+        # Cancel button
+        cancel_btn = ctk.CTkButton(
+            footer,
+            text="Cancel",
+            width=100,
+            fg_color="gray",
+            hover_color="gray30",
+            command=overlay.destroy,
+        )
+        cancel_btn.pack(side="right", padx=5)
+        
+        # Save button
+        def save_and_close():
+            # Copy content back to main text area
+            new_text = text_area.get("1.0", "end-1c")
+            self.meeting_context.delete("1.0", "end")
+            self.meeting_context.insert("1.0", new_text)
+            overlay.destroy()
+        
+        save_btn = ctk.CTkButton(
+            footer,
+            text="Save & Close",
+            width=120,
+            command=save_and_close,
+        )
+        save_btn.pack(side="right", padx=5)
+        
+        # Keyboard shortcuts
+        overlay.bind("<Escape>", lambda e: overlay.destroy())
+        overlay.bind("<Command-w>", lambda e: overlay.destroy())  # macOS
+        overlay.bind("<Control-w>", lambda e: overlay.destroy())  # Windows/Linux
+        overlay.bind("<Command-s>", lambda e: save_and_close())  # macOS
+        overlay.bind("<Control-s>", lambda e: save_and_close())  # Windows/Linux
 
     def _refresh_all(self):
         """Refresh all status indicators."""

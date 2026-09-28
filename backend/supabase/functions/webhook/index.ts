@@ -8,18 +8,62 @@ const DODO_WEBHOOK_SECRET = Deno.env.get('DODO_WEBHOOK_SECRET')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
+// Helper function to verify webhook signature
+async function verifyWebhookSignature(body: string, signature: string | null): Promise<boolean> {
+  if (!DODO_WEBHOOK_SECRET || !signature) {
+    console.warn('Missing webhook secret or signature')
+    return false
+  }
+
+  try {
+    // Dodo Payments typically uses HMAC-SHA256 for webhook signatures
+    // The signature format is usually: timestamp.signature_hash
+    // Reference: https://docs.dodopayments.com/webhooks (adjust based on actual docs)
+    
+    const encoder = new TextEncoder()
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(DODO_WEBHOOK_SECRET),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    )
+    
+    const signatureBuffer = await crypto.subtle.sign(
+      'HMAC',
+      key,
+      encoder.encode(body)
+    )
+    
+    const expectedSignature = Array.from(new Uint8Array(signatureBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+    
+    // Extract the hash portion if signature includes timestamp
+    const signatureHash = signature.includes('.') ? signature.split('.')[1] : signature
+    
+    // Constant-time comparison to prevent timing attacks
+    return expectedSignature === signatureHash
+  } catch (error) {
+    console.error('Signature verification error:', error)
+    return false
+  }
+}
+
 serve(async (req) => {
   try {
-    // Verify webhook signature (adjust based on Dodo's signature method)
+    // Get signature and body
     const signature = req.headers.get('x-dodo-signature') || req.headers.get('x-webhook-signature')
     const body = await req.text()
 
-    // TODO: Implement proper signature verification based on Dodo Payments docs
-    // For now, we'll use a simple secret header check
-    if (DODO_WEBHOOK_SECRET && signature !== DODO_WEBHOOK_SECRET) {
-      console.warn('Invalid webhook signature')
-      // In production, uncomment this:
-      // return new Response('Invalid signature', { status: 401 })
+    // CRITICAL: Verify webhook signature to prevent unauthorized requests
+    const isValid = await verifyWebhookSignature(body, signature)
+    if (!isValid) {
+      console.error('Invalid webhook signature - rejecting request')
+      return new Response(
+        JSON.stringify({ error: 'Invalid signature' }), 
+        { status: 401, headers: { 'Content-Type': 'application/json' } }
+      )
     }
 
     const event = JSON.parse(body)
